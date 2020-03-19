@@ -115,8 +115,8 @@ static_library("textclassifier") {
   include_dirs = [
     "//libtextclassifier",
     "${sysroot}/usr/include/flatbuffers",
-    "${sysroot}/usr/include/icu/common/",
-    "${sysroot}/usr/include/icu/i18n/",
+    "${sysroot}/usr/include/icu-chrome/common/",
+    "${sysroot}/usr/include/icu-chrome/i18n/",
     "${sysroot}/usr/include/tensorflow",
     "${root_gen_dir}/libtextclassifier",
   ]
