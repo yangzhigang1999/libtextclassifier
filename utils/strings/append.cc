@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 
-#pragma clang diagnostic ignored "-Wformat-nonliteral"
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
 
 #include "utils/strings/append.h"
 

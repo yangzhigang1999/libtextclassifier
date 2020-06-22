@@ -1,6 +1,17 @@
-# Copyright 2020 The Chromium OS Authors. All rights reserved.
-# Use of this source code is governed by a BSD-style license that can be
-# found in the LICENSE file.
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 
 import("//common-mk/pkg_config.gni")
 import("//common-mk/flatbuffer.gni")
@@ -19,16 +30,23 @@ pkg_config("tclib_config") {
 
 flatbuffer("flatbuffers") {
   sources = [
-    "annotator/model.fbs",
     "annotator/entity-data.fbs",
-    "utils/flatbuffers.fbs",
-    "utils/i18n/language-tag.fbs",
-    "utils/tflite/text_encoder_config.fbs",
+    "annotator/experimental/experimental.fbs",
+    "annotator/grammar/dates/dates.fbs",
+    "annotator/grammar/dates/timezone-code.fbs",
+    "annotator/model.fbs",
+    "annotator/person_name/person_name_model.fbs",
+    "lang_id/common/flatbuffers/embedding-network.fbs",
+    "lang_id/common/flatbuffers/model.fbs",
     "utils/codepoint-range.fbs",
-    "utils/resources.fbs",
-    "utils/tokenizer.fbs",
+    "utils/flatbuffers.fbs",
+    "utils/grammar/rules.fbs",
+    "utils/i18n/language-tag.fbs",
     "utils/intents/intent-config.fbs",
     "utils/normalization.fbs",
+    "utils/resources.fbs",
+    "utils/tflite/text_encoder_config.fbs",
+    "utils/tokenizer.fbs",
     "utils/zlib/buffer.fbs",
   ]
 
@@ -48,18 +66,63 @@ static_library("textclassifier") {
     "annotator/cached-features.cc",
     "annotator/datetime/extractor.cc",
     "annotator/datetime/parser.cc",
+    "annotator/datetime/utils.cc",
     "annotator/duration/duration.cc",
     "annotator/feature-processor.cc",
     "annotator/flatbuffer-utils.cc",
+    "annotator/grammar/dates/annotations/annotation-util.cc",
+    "annotator/grammar/dates/cfg-datetime-annotator.cc",
+    "annotator/grammar/dates/extractor.cc",
+    "annotator/grammar/dates/parser.cc",
+    "annotator/grammar/dates/utils/annotation-keys.cc",
+    "annotator/grammar/dates/utils/date-match.cc",
+    "annotator/grammar/dates/utils/date-utils.cc",
+    "annotator/grammar/grammar-annotator.cc",
+    "annotator/grammar/utils.cc",
     "annotator/model-executor.cc",
     "annotator/number/number.cc",
     "annotator/quantization.cc",
     "annotator/strip-unpaired-brackets.cc",
+    "annotator/translate/translate.cc",
     "annotator/types.cc",
     "annotator/zlib-utils.cc",
+    "lang_id/common/embedding-feature-extractor.cc",
+    "lang_id/common/embedding-network-params.cc",
+    "lang_id/common/embedding-network.cc",
+    "lang_id/common/fel/feature-descriptors.cc",
+    "lang_id/common/fel/feature-extractor.cc",
+    "lang_id/common/fel/fel-parser.cc",
+    "lang_id/common/fel/task-context.cc",
+    "lang_id/common/fel/workspace.cc",
+    "lang_id/common/file/file-utils.cc",
+    "lang_id/common/file/mmap.cc",
+    "lang_id/common/flatbuffers/embedding-network-params-from-flatbuffer.cc",
+    "lang_id/common/flatbuffers/model-utils.cc",
+    "lang_id/common/lite_base/compact-logging-raw.cc",
+    "lang_id/common/lite_base/compact-logging.cc",
+    "lang_id/common/lite_strings/numbers.cc",
+    "lang_id/common/lite_strings/str-split.cc",
+    "lang_id/common/math/checksum.cc",
+    "lang_id/common/math/fastexp.cc",
+    "lang_id/common/math/hash.cc",
+    "lang_id/common/math/softmax.cc",
+    "lang_id/common/utf8.cc",
+    "lang_id/custom-tokenizer.cc",
+    "lang_id/fb_model/lang-id-from-fb.cc",
+    "lang_id/fb_model/model-provider-from-fb.cc",
+    "lang_id/features/char-ngram-feature.cc",
+    "lang_id/features/light-sentence-features.cc",
+    "lang_id/features/relevant-script-feature.cc",
+    "lang_id/lang-id-wrapper.cc",
+    "lang_id/lang-id.cc",
+    "lang_id/script/approx-script-data.cc",
+    "lang_id/script/approx-script.cc",
+    "lang_id/script/script-detector.cc",
+    "lang_id/script/tiny-script-detector.cc",
     "utils/base/arena.cc",
     "utils/base/logging.cc",
     "utils/base/logging_raw.cc",
+    "utils/base/prefixvarint.cc",
     "utils/base/status.cc",
     "utils/calendar/calendar-icu.cc",
     "utils/checksum.cc",
@@ -67,6 +130,12 @@ static_library("textclassifier") {
     "utils/container/double-array-trie.cc",
     "utils/container/sorted-strings-table.cc",
     "utils/flatbuffers.cc",
+    "utils/grammar/lexer.cc",
+    "utils/grammar/match.cc",
+    "utils/grammar/matcher.cc",
+    "utils/grammar/rules-utils.cc",
+    "utils/grammar/utils/ir.cc",
+    "utils/grammar/utils/rules.cc",
     "utils/hash/farmhash.cc",
     "utils/i18n/locale.cc",
     "utils/math/fastexp.cc",
@@ -101,10 +170,11 @@ static_library("textclassifier") {
   deps = [ ":flatbuffers" ]
 
   defines = [
-    "ZLIB_CONST",
-    "TC3_DISABLE_LUA",
+    "SAFTM_COMPACT_LOGGING",
     "TC3_CALENDAR_ICU",
+    "TC3_DISABLE_LUA",
     "TC3_UNILIB_ICU",
+    "ZLIB_CONST",
   ]
 
   libs = [

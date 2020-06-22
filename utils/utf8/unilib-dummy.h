@@ -30,6 +30,9 @@ namespace libtextclassifier3 {
 class UniLibBase {
  public:
   bool ParseInt32(const UnicodeText& text, int* result) const;
+  bool ParseInt64(const UnicodeText& text, int64* result) const;
+  bool ParseDouble(const UnicodeText& text, double* result) const;
+
   bool IsOpeningBracket(char32 codepoint) const;
   bool IsClosingBracket(char32 codepoint) const;
   bool IsWhitespace(char32 codepoint) const;

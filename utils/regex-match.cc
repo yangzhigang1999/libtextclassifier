@@ -20,11 +20,12 @@
 #include "annotator/types.h"
 
 #ifndef TC3_DISABLE_LUA
+#include "utils/lua-utils.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "third_party/lua/lua5.2/src/lauxlib.h"
-#include "third_party/lua/lua5.2/src/lualib.h"
+#include "third_party/lua/lua/v5_2/src/lauxlib.h"
+#include "third_party/lua/lua/v5_2/src/lualib.h"
 #ifdef __cplusplus
 }
 #endif
@@ -36,7 +37,7 @@ namespace {
 #ifndef TC3_DISABLE_LUA
 // Provide a lua environment for running regex match post verification.
 // It sets up and exposes the match data as well as the context.
-class LuaVerifier : private LuaEnvironment {
+class LuaVerifier : public LuaEnvironment {
  public:
   static std::unique_ptr<LuaVerifier> Create(
       const std::string& context, const std::string& verifier_code,
@@ -73,7 +74,7 @@ bool LuaVerifier::Initialize() {
            //   * `begin`: span start
            //   * `end`: span end
            //   * `text`: the text
-           BindTable<LuaVerifier, &LuaVerifier::GetCapturingGroup>("match");
+           PushLazyObject(&LuaVerifier::GetCapturingGroup);
            lua_setglobal(state_, "match");
            return LUA_OK;
          }) == LUA_OK;

@@ -14,8 +14,8 @@
 //
 
 #pragma GCC diagnostic ignored "-Wunreachable-code"
-#pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunreachable-code-return"
+#pragma GCC diagnostic ignored "-Wunused-function"
 
 #include "utils/hash/farmhash.h"
 

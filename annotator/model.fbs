@@ -13,8 +13,12 @@
 // limitations under the License.
 //
 
+include "annotator/entity-data.fbs";
+include "annotator/experimental/experimental.fbs";
+include "annotator/grammar/dates/dates.fbs";
 include "utils/codepoint-range.fbs";
 include "utils/flatbuffers.fbs";
+include "utils/grammar/rules.fbs";
 include "utils/intents/intent-config.fbs";
 include "utils/normalization.fbs";
 include "utils/resources.fbs";
@@ -41,6 +45,7 @@ namespace libtextclassifier3;
 enum AnnotationUsecase : int {
   // Results are optimized for Smart{Select,Share,Linkify}.
   ANNOTATION_USECASE_SMART = 0,
+  // Smart{Select,Share,Linkify}
 
   // Results are optimized for using TextClassifier as an infrastructure that
   // annotates as much as possible.
@@ -195,8 +200,10 @@ table VerificationOptions {
   lua_verifier:int = -1;
 }
 
-// Behaviour of capturing groups.
-namespace libtextclassifier3.RegexModel_.Pattern_;
+// Behaviour of rule capturing groups.
+// This specifies how the text and span of a capturing group, in a regular
+// expression or from a capturing match in a grammar rule, should be handled.
+namespace libtextclassifier3;
 table CapturingGroup {
   // If true, the span of the capturing group will be used to
   // extend the selection.
@@ -206,12 +213,14 @@ table CapturingGroup {
   // the classfication result entity data.
   entity_field_path:FlatbufferFieldPath;
 
-  // If set, the serialized entity data will be merged with the
+  // If set, the flatbuffer entity data will be merged with the
   // classification result entity data.
   serialized_entity_data:string;
 
   // If set, normalization to apply before text is used in entity data.
   normalization_options:NormalizationOptions;
+
+  entity_data:EntityData;
 }
 
 // List of regular expression matchers to check.
@@ -242,10 +251,12 @@ table Pattern {
   // Verification to apply on a match.
   verification_options:VerificationOptions;
 
-  capturing_group:[Pattern_.CapturingGroup];
+  capturing_group:[CapturingGroup];
 
-  // Serialized entity data to set for a match.
+  // Entity data to set for a match.
   serialized_entity_data:string;
+
+  entity_data:EntityData;
 }
 
 namespace libtextclassifier3;
@@ -337,6 +348,106 @@ table DatetimeModel {
   prefer_future_for_unspecified_date:bool = false;
 }
 
+// Configuration for the tokenizer.
+namespace libtextclassifier3;
+table GrammarTokenizerOptions {
+  tokenization_type:TokenizationType = ICU;
+
+  // If true, white space tokens will be kept when using the icu tokenizer.
+  icu_preserve_whitespace_tokens:bool = false;
+
+  // Codepoint ranges that determine what role the different codepoints play
+  // during tokenized. The ranges must not overlap.
+  tokenization_codepoint_config:[TokenizationCodepointRange];
+
+  // A set of codepoint ranges to use in the mixed tokenization mode to identify
+  // stretches of tokens to re-tokenize using the internal tokenizer.
+  internal_tokenizer_codepoint_ranges:[CodepointRange];
+
+  // If true, tokens will be also split when the codepoint's script_id changes
+  // as defined in TokenizationCodepointRange.
+  tokenize_on_script_change:bool = false;
+}
+
+// Options for grammar date/datetime/date range annotations.
+namespace libtextclassifier3.GrammarDatetimeModel_;
+table AnnotationOptions {
+  // If enabled, extract special day offset like today, yesterday, etc.
+  enable_special_day_offset:bool = true;
+
+  // If true, merge the adjacent day of week, time and date. e.g.
+  // "20/2/2016 at 8pm" is extracted as a single instance instead of two
+  // instance: "20/2/2016" and "8pm".
+  merge_adjacent_components:bool = true;
+
+  // List the extra id of requested dates.
+  extra_requested_dates:[string];
+
+  // If true, try to include preposition to the extracted annotation. e.g.
+  // "at 6pm". if it's false, only 6pm is included. offline-actions has
+  // special requirements to include preposition.
+  include_preposition:bool = true;
+
+  // If enabled, extract range in date annotator.
+  // input: Monday, 5-6pm
+  // If the flag is true, The extracted annotation only contains 1 range
+  // instance which is from Monday 5pm to 6pm.
+  // If the flag is false, The extracted annotation contains two date
+  // instance: "Monday" and "6pm".
+  enable_date_range:bool = true;
+  reserved_6:int16 (deprecated);
+
+  // If enabled, the rule priority score is used to set the priority score of
+  // the annotation.
+  // In case of false the annotation priority score is set from
+  // GrammarDatetimeModel's priority_score
+  use_rule_priority_score:bool = false;
+
+  // If enabled, annotator will try to resolve the ambiguity by generating
+  // possible alternative interpretations of the input text
+  // e.g. '9:45' will be resolved to '9:45 AM' and '9:45 PM'.
+  generate_alternative_interpretations_when_ambiguous:bool;
+
+  // List of spans which grammar will ignore during the match e.g. if
+  // “@” is in the allowed span list and input is “12 March @ 12PM” then “@”
+  // will be ignored and 12 March @ 12PM will be translate to
+  // {Day:12 Month: March Hour: 12 MERIDIAN: PM}.
+  // This can also be achieved by adding additional rules e.g.
+  // <Digit_Day> <Month> <Time>
+  // <Digit_Day> <Month> @ <Time>
+  // Though this is doable in the grammar but requires multiple rules, this
+  // list enables the rule to represent multiple rules.
+  ignored_spans:[string];
+}
+
+namespace libtextclassifier3;
+table GrammarDatetimeModel {
+  // List of BCP 47 locale strings representing all locales supported by the
+  // model.
+  locales:[string];
+
+  // If true, will give only future dates (when the day is not specified).
+  prefer_future_for_unspecified_date:bool = false;
+
+  // Grammar specific tokenizer options.
+  grammar_tokenizer_options:GrammarTokenizerOptions;
+
+  // The modes for which to apply the grammars.
+  enabled_modes:ModeFlag = ALL;
+
+  // The datetime grammar rules.
+  datetime_rules:dates.DatetimeRules;
+
+  // The final score to assign to the results of grammar model
+  target_classification_score:float = 1;
+
+  // The priority score used for conflict resolution with the other models.
+  priority_score:float = 0;
+
+  // Options for grammar annotations.
+  annotation_options:GrammarDatetimeModel_.AnnotationOptions;
+}
+
 namespace libtextclassifier3.DatetimeModelLibrary_;
 table Item {
   key:string;
@@ -347,6 +458,61 @@ table Item {
 namespace libtextclassifier3;
 table DatetimeModelLibrary {
   models:[DatetimeModelLibrary_.Item];
+}
+
+// Classification result to instantiate for a rule match.
+namespace libtextclassifier3.GrammarModel_;
+table RuleClassificationResult {
+  // The name of the collection.
+  collection_name:string;
+
+  // The score.
+  target_classification_score:float = 1;
+
+  // The priority score used for conflict resolution with the other models.
+  priority_score:float = 0;
+
+  // Behaviour of capturing matches.
+  capturing_group:[CapturingGroup];
+
+  // Entity data to set for a match.
+  serialized_entity_data:string;
+
+  // Enabled modes.
+  enabled_modes:ModeFlag = ALL;
+
+  entity_data:EntityData;
+}
+
+// Configuration for grammar based annotators.
+namespace libtextclassifier3;
+table GrammarModel {
+  // The grammar rules.
+  rules:grammar.RulesSet;
+
+  rule_classification_result:[GrammarModel_.RuleClassificationResult];
+
+  // Number of tokens in the context to use for classification and text
+  // selection suggestion.
+  // A value -1 uses the full context.
+  context_left_num_tokens:int;
+
+  context_right_num_tokens:int;
+
+  // Grammar specific tokenizer options.
+  tokenizer_options:GrammarTokenizerOptions;
+}
+
+namespace libtextclassifier3;
+table MoneyParsingOptions {
+  // Separators (codepoints) marking decimal or thousand in the money amount.
+  separators:[int];
+}
+
+namespace libtextclassifier3.ModelTriggeringOptions_;
+table CollectionToPriorityEntry {
+  key:string (key);
+  value:float;
 }
 
 // Options controlling the output of the Tensorflow Lite models.
@@ -372,6 +538,12 @@ table ModelTriggeringOptions {
 
   // Priority score assigned to knowledge engine annotations.
   knowledge_priority_score:float = 0;
+  reserved_7:int16 (deprecated);
+
+  // Apply a factor to the priority score for entities that are added to this
+  // map. Key: collection type e.g. "address", "phone"..., Value: float number.
+  // NOTE: The entries here need to be sorted since we use LookupByKey.
+  collection_to_priority:[ModelTriggeringOptions_.CollectionToPriorityEntry];
 }
 
 // Options controlling the output of the classifier.
@@ -403,6 +575,18 @@ table EmbeddingPruningMask {
   // Index of row of compressed embedding matrix to which all pruned buckets
   // are mapped.
   pruned_row_bucket_id:int;
+}
+
+namespace libtextclassifier3.Model_;
+table ConflictResolutionOptions {
+  // If true, will prioritize the longest annotation during conflict
+  // resolution.
+  prioritize_longest_annotation:bool = false;
+
+  // If true, the annotator will perform conflict resolution between the
+  // different sub-annotators also in the RAW mode. If false, no conflict
+  // resolution will be performed in RAW mode.
+  do_conflict_resolution_in_raw_mode:bool = true;
 }
 
 namespace libtextclassifier3;
@@ -467,12 +651,20 @@ table Model {
   triggering_locales:string;
 
   embedding_pruning_mask:Model_.EmbeddingPruningMask;
+  grammar_datetime_model:GrammarDatetimeModel;
+  contact_annotator_options:ContactAnnotatorOptions;
+  money_parsing_options:MoneyParsingOptions;
+  translate_annotator_options:TranslateAnnotatorOptions;
+  grammar_model:GrammarModel;
+  conflict_resolution_options:Model_.ConflictResolutionOptions;
+  experimental_model:ExperimentalModel;
 }
 
 // Method for selecting the center token.
 namespace libtextclassifier3.FeatureProcessorOptions_;
 enum CenterTokenSelectionMethod : int {
   DEFAULT_CENTER_TOKEN_METHOD = 0,
+  // Invalid option.
 
   // Use click indices to determine the center token.
   CENTER_TOKEN_FROM_CLICK = 1,
@@ -645,7 +837,7 @@ table FeatureProcessorOptions {
 
 namespace libtextclassifier3;
 table NumberAnnotatorOptions {
-  // If true, number annotations will be produced.
+  // If true, number and percentage annotations will be produced.
   enabled:bool = false;
 
   // Score to assign to the annotated numbers and percentages in the annotator.
@@ -654,32 +846,34 @@ table NumberAnnotatorOptions {
   // Number priority score used for conflict resolution with the other models.
   priority_score:float = 0;
 
-  // The modes in which to enable number annotations.
+  // The modes in which to enable number and percentage annotations.
   enabled_modes:ModeFlag = ALL;
 
   // The annotation usecases for which to produce number annotations.
   // This is a flag field for values of AnnotationUsecase.
   enabled_annotation_usecases:uint = 4294967295;
 
-  // A list of codepoints that can form a prefix of a valid number.
+  // [Deprecated] A list of codepoints that can form a prefix of a valid number.
   allowed_prefix_codepoints:[int];
 
-  // A list of codepoints that can form a suffix of a valid number.
+  // [Deprecated] A list of codepoints that can form a suffix of a valid number.
   allowed_suffix_codepoints:[int];
 
-  // List of codepoints that will be stripped from beginning of predicted spans.
+  // [Deprecated] List of codepoints that will be stripped from beginning of
+  // predicted spans.
   ignored_prefix_span_boundary_codepoints:[int];
 
-  // List of codepoints that will be stripped from end of predicted spans.
+  // [Deprecated] List of codepoints that will be stripped from end of predicted
+  // spans.
   ignored_suffix_span_boundary_codepoints:[int];
 
-  // If true, percent annotations will be produced.
+  // [Deprecated] If true, percent annotations will be produced.
   enable_percentage:bool = false;
 
   // Zero separated and ordered list of suffixes that mark a percent.
   percentage_pieces_string:string;
 
-  // List of suffixes offsets in the percent_pieces_string string.
+  // [Deprecated] List of suffixes offsets in the percent_pieces_string string.
   percentage_pieces_offsets:[int];
 
   // Priority score for the percentage annotation.
@@ -688,6 +882,14 @@ table NumberAnnotatorOptions {
   // Float number priority score used for conflict resolution with the other
   // models.
   float_number_priority_score:float = 0;
+
+  // The maximum number of digits an annotated number can have. Requirement:
+  // the value should be less or equal to 20.
+  max_number_of_digits:int = 20;
+
+  // The annotation usecases for which to produce percentage annotations.
+  // This is a flag field for values of AnnotationUsecase.
+  percentage_annotation_usecases:uint = 2;
 }
 
 // DurationAnnotator is so far tailored for English and Japanese only.
@@ -738,6 +940,48 @@ table DurationAnnotatorOptions {
   // If this is true, dangling quantity is included in the annotation. For
   // example, "10 minutes 20" is interpreted as 10 minutes and 20 seconds.
   enable_dangling_quantity_interpretation:bool = true;
+}
+
+namespace libtextclassifier3;
+table ContactAnnotatorOptions {
+  // Supported for English genitives only so far.
+  enable_declension:bool;
+
+  // For each language there is a customized list of supported declensions.
+  language:string;
+}
+
+namespace libtextclassifier3.TranslateAnnotatorOptions_;
+enum Algorithm : int {
+  DEFAULT_ALGORITHM = 0,
+  BACKOFF = 1,
+}
+
+// Backoff is the algorithm shipped with Android Q.
+namespace libtextclassifier3.TranslateAnnotatorOptions_;
+table BackoffOptions {
+  // The minimum size of text to prefer for detection (in codepoints).
+  min_text_size:int = 20;
+
+  // For reducing the score when text is less than the preferred size.
+  penalize_ratio:float = 1;
+
+  // Original detection score to surrounding text detection score ratios.
+  subject_text_score_ratio:float = 0.4;
+}
+
+namespace libtextclassifier3;
+table TranslateAnnotatorOptions {
+  enabled:bool = false;
+
+  // Score to assign to the classification results.
+  score:float = 1;
+
+  // Priority score used for conflict resolution with the other models.
+  priority_score:float;
+
+  algorithm:TranslateAnnotatorOptions_.Algorithm;
+  backoff_options:TranslateAnnotatorOptions_.BackoffOptions;
 }
 
 root_type libtextclassifier3.Model;

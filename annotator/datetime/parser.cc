@@ -19,6 +19,7 @@
 #include <unordered_set>
 
 #include "annotator/datetime/extractor.h"
+#include "annotator/datetime/utils.h"
 #include "utils/calendar/calendar.h"
 #include "utils/i18n/locale.h"
 #include "utils/strings/split.h"
@@ -26,8 +27,8 @@
 
 namespace libtextclassifier3 {
 std::unique_ptr<DatetimeParser> DatetimeParser::Instance(
-    const DatetimeModel* model, const UniLib& unilib,
-    const CalendarLib& calendarlib, ZlibDecompressor* decompressor) {
+    const DatetimeModel* model, const UniLib* unilib,
+    const CalendarLib* calendarlib, ZlibDecompressor* decompressor) {
   std::unique_ptr<DatetimeParser> result(
       new DatetimeParser(model, unilib, calendarlib, decompressor));
   if (!result->initialized_) {
@@ -36,10 +37,10 @@ std::unique_ptr<DatetimeParser> DatetimeParser::Instance(
   return result;
 }
 
-DatetimeParser::DatetimeParser(const DatetimeModel* model, const UniLib& unilib,
-                               const CalendarLib& calendarlib,
+DatetimeParser::DatetimeParser(const DatetimeModel* model, const UniLib* unilib,
+                               const CalendarLib* calendarlib,
                                ZlibDecompressor* decompressor)
-    : unilib_(unilib), calendarlib_(calendarlib) {
+    : unilib_(*unilib), calendarlib_(*calendarlib) {
   initialized_ = false;
 
   if (model == nullptr) {
@@ -52,7 +53,7 @@ DatetimeParser::DatetimeParser(const DatetimeModel* model, const UniLib& unilib,
         for (const DatetimeModelPattern_::Regex* regex : *pattern->regexes()) {
           std::unique_ptr<UniLib::RegexPattern> regex_pattern =
               UncompressMakeRegexPattern(
-                  unilib, regex->pattern(), regex->compressed_pattern(),
+                  unilib_, regex->pattern(), regex->compressed_pattern(),
                   model->lazy_regex_compilation(), decompressor);
           if (!regex_pattern) {
             TC3_LOG(ERROR) << "Couldn't create rule pattern.";
@@ -73,7 +74,7 @@ DatetimeParser::DatetimeParser(const DatetimeModel* model, const UniLib& unilib,
     for (const DatetimeModelExtractor* extractor : *model->extractors()) {
       std::unique_ptr<UniLib::RegexPattern> regex_pattern =
           UncompressMakeRegexPattern(
-              unilib, extractor->pattern(), extractor->compressed_pattern(),
+              unilib_, extractor->pattern(), extractor->compressed_pattern(),
               model->lazy_regex_compilation(), decompressor);
       if (!regex_pattern) {
         TC3_LOG(ERROR) << "Couldn't create extractor pattern";
@@ -346,58 +347,6 @@ std::vector<int> DatetimeParser::ParseAndExpandLocales(
   return result;
 }
 
-void DatetimeParser::FillInterpretations(
-    const DatetimeParsedData& parse,
-    std::vector<DatetimeParsedData>* interpretations) const {
-  DatetimeGranularity granularity = calendarlib_.GetGranularity(parse);
-
-  DatetimeParsedData modified_parse(parse);
-  // If the relation field is not set, but relation_type field *is*, assume
-  // the relation field is NEXT_OR_SAME. This is necessary to handle e.g.
-  // "monday 3pm" (otherwise only "this monday 3pm" would work).
-  if (parse.HasFieldType(DatetimeComponent::ComponentType::DAY_OF_WEEK)) {
-    DatetimeComponent::RelativeQualifier relative_value;
-    if (parse.GetRelativeValue(DatetimeComponent::ComponentType::DAY_OF_WEEK,
-                               &relative_value)) {
-      if (relative_value == DatetimeComponent::RelativeQualifier::UNSPECIFIED) {
-        modified_parse.SetRelativeValue(
-            DatetimeComponent::ComponentType::DAY_OF_WEEK,
-            DatetimeComponent::RelativeQualifier::THIS);
-      }
-    }
-  }
-
-  // Multiple interpretations of ambiguous datetime expressions are generated
-  // here.
-  if (granularity > DatetimeGranularity::GRANULARITY_DAY &&
-      modified_parse.HasFieldType(DatetimeComponent::ComponentType::HOUR) &&
-      !modified_parse.HasRelativeValue(
-          DatetimeComponent::ComponentType::HOUR) &&
-      !modified_parse.HasFieldType(
-          DatetimeComponent::ComponentType::MERIDIEM)) {
-    int hour_value;
-    modified_parse.GetFieldValue(DatetimeComponent::ComponentType::HOUR,
-                                 &hour_value);
-    if (hour_value <= 12) {
-      modified_parse.SetAbsoluteValue(
-          DatetimeComponent::ComponentType::MERIDIEM, 0);
-      interpretations->push_back(modified_parse);
-      modified_parse.SetAbsoluteValue(
-          DatetimeComponent::ComponentType::MERIDIEM, 1);
-      interpretations->push_back(modified_parse);
-    } else {
-      interpretations->push_back(modified_parse);
-    }
-  } else {
-    // Otherwise just generate 1 variant.
-    interpretations->push_back(modified_parse);
-  }
-  // TODO(zilka): Add support for generating alternatives for "monday" -> "this
-  // monday", "next monday", "last monday". The previous implementation did not
-  // work as expected, because didn't work correctly for this/previous day of
-  // week, and resulted sometimes results in the same date being proposed.
-}
-
 bool DatetimeParser::ExtractDatetime(const CompiledRule& rule,
                                      const UniLib::RegexMatcher& matcher,
                                      const int64 reference_time_ms_utc,
@@ -407,7 +356,7 @@ bool DatetimeParser::ExtractDatetime(const CompiledRule& rule,
                                      std::vector<DatetimeParseResult>* results,
                                      CodepointSpan* result_span) const {
   DatetimeParsedData parse;
-  DatetimeExtractor extractor(rule, matcher, locale_id, unilib_,
+  DatetimeExtractor extractor(rule, matcher, locale_id, &unilib_,
                               extractor_rules_,
                               type_and_locale_to_extractor_rule_);
   if (!extractor.Extract(&parse, result_span)) {
@@ -415,7 +364,8 @@ bool DatetimeParser::ExtractDatetime(const CompiledRule& rule,
   }
   std::vector<DatetimeParsedData> interpretations;
   if (generate_alternative_interpretations_when_ambiguous_) {
-    FillInterpretations(parse, &interpretations);
+    FillInterpretations(parse, calendarlib_.GetGranularity(parse),
+                        &interpretations);
   } else {
     interpretations.push_back(parse);
   }

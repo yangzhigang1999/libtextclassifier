@@ -17,10 +17,12 @@
 
 #include <climits>
 #include <cstdlib>
+#include <string>
 
 #include "annotator/collections.h"
 #include "annotator/types.h"
 #include "utils/base/logging.h"
+#include "utils/strings/split.h"
 #include "utils/utf8/unicodetext.h"
 
 namespace libtextclassifier3 {
@@ -39,11 +41,6 @@ bool NumberAnnotator::ClassifyText(
     return false;
   }
 
-  const CodepointSpan stripped_selection_indices =
-      feature_processor_->StripBoundaryCodepoints(
-          context, selection_indices, ignored_prefix_span_boundary_codepoints_,
-          ignored_suffix_span_boundary_codepoints_);
-
   for (const AnnotatedSpan& result : results) {
     if (result.classification.empty()) {
       continue;
@@ -54,9 +51,9 @@ bool NumberAnnotator::ClassifyText(
     // anyway only find valid numbers and percentages and a given selection with
     // more than two tokens won't pass this check.
     if (result.span.first + selection_indices.first ==
-            stripped_selection_indices.first &&
+            selection_indices.first &&
         result.span.second + selection_indices.first ==
-            stripped_selection_indices.second) {
+            selection_indices.second) {
       *classification_result = result.classification[0];
       return true;
     }
@@ -64,257 +61,253 @@ bool NumberAnnotator::ClassifyText(
   return false;
 }
 
-bool NumberAnnotator::FindAll(const UnicodeText& context,
-                              AnnotationUsecase annotation_usecase,
-                              std::vector<AnnotatedSpan>* result) const {
-  if (!options_->enabled() || ((1 << annotation_usecase) &
-                               options_->enabled_annotation_usecases()) == 0) {
+bool NumberAnnotator::IsCJTterm(UnicodeText::const_iterator token_begin_it,
+                                const int token_length) const {
+  auto token_end_it = token_begin_it;
+  std::advance(token_end_it, token_length);
+  for (auto char_it = token_begin_it; char_it < token_end_it; ++char_it) {
+    if (!unilib_->IsCJTletter(*char_it)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool NumberAnnotator::TokensAreValidStart(const std::vector<Token>& tokens,
+                                          const int start_index) const {
+  if (start_index < 0 || tokens[start_index].is_whitespace) {
+    return true;
+  }
+  return false;
+}
+
+bool NumberAnnotator::TokensAreValidNumberPrefix(
+    const std::vector<Token>& tokens, const int prefix_end_index) const {
+  if (TokensAreValidStart(tokens, prefix_end_index)) {
     return true;
   }
 
-  const std::vector<Token> tokens = feature_processor_->Tokenize(context);
-  for (const Token& token : tokens) {
+  auto prefix_begin_it =
+      UTF8ToUnicodeText(tokens[prefix_end_index].value, /*do_copy=*/false)
+          .begin();
+  const int token_length =
+      tokens[prefix_end_index].end - tokens[prefix_end_index].start;
+  if (token_length == 1 && unilib_->IsOpeningBracket(*prefix_begin_it) &&
+      TokensAreValidStart(tokens, prefix_end_index - 1)) {
+    return true;
+  }
+  if (token_length == 1 && unilib_->IsNumberSign(*prefix_begin_it) &&
+      TokensAreValidStart(tokens, prefix_end_index - 1)) {
+    return true;
+  }
+  if (token_length == 1 && unilib_->IsSlash(*prefix_begin_it) &&
+      prefix_end_index >= 1 &&
+      TokensAreValidStart(tokens, prefix_end_index - 2)) {
+    int64 int_val;
+    double double_val;
+    return TryParseNumber(UTF8ToUnicodeText(tokens[prefix_end_index - 1].value,
+                                            /*do_copy=*/false),
+                          false, &int_val, &double_val);
+  }
+  if (IsCJTterm(prefix_begin_it, token_length)) {
+    return true;
+  }
+
+  return false;
+}
+
+bool NumberAnnotator::TokensAreValidEnding(const std::vector<Token>& tokens,
+                                           const int ending_index) const {
+  if (ending_index >= tokens.size() || tokens[ending_index].is_whitespace) {
+    return true;
+  }
+
+  auto ending_begin_it =
+      UTF8ToUnicodeText(tokens[ending_index].value, /*do_copy=*/false).begin();
+  if (ending_index == tokens.size() - 1 &&
+      tokens[ending_index].end - tokens[ending_index].start == 1 &&
+      unilib_->IsPunctuation(*ending_begin_it)) {
+    return true;
+  }
+  if (ending_index < tokens.size() - 1 &&
+      tokens[ending_index].end - tokens[ending_index].start == 1 &&
+      unilib_->IsPunctuation(*ending_begin_it) &&
+      tokens[ending_index + 1].is_whitespace) {
+    return true;
+  }
+
+  return false;
+}
+
+bool NumberAnnotator::TokensAreValidNumberSuffix(
+    const std::vector<Token>& tokens, const int suffix_start_index) const {
+  if (TokensAreValidEnding(tokens, suffix_start_index)) {
+    return true;
+  }
+
+  auto suffix_begin_it =
+      UTF8ToUnicodeText(tokens[suffix_start_index].value, /*do_copy=*/false)
+          .begin();
+
+  if (percent_suffixes_.find(tokens[suffix_start_index].value) !=
+          percent_suffixes_.end() &&
+      TokensAreValidEnding(tokens, suffix_start_index + 1)) {
+    return true;
+  }
+
+  const int token_length =
+      tokens[suffix_start_index].end - tokens[suffix_start_index].start;
+  if (token_length == 1 && unilib_->IsSlash(*suffix_begin_it) &&
+      suffix_start_index <= tokens.size() - 2 &&
+      TokensAreValidEnding(tokens, suffix_start_index + 2)) {
+    int64 int_val;
+    double double_val;
+    return TryParseNumber(
+        UTF8ToUnicodeText(tokens[suffix_start_index + 1].value,
+                          /*do_copy=*/false),
+        false, &int_val, &double_val);
+  }
+  if (IsCJTterm(suffix_begin_it, token_length)) {
+    return true;
+  }
+
+  return false;
+}
+
+int NumberAnnotator::FindPercentSuffixEndCodepoint(
+    const std::vector<Token>& tokens,
+    const int suffix_token_start_index) const {
+  if (suffix_token_start_index >= tokens.size()) {
+    return -1;
+  }
+
+  if (percent_suffixes_.find(tokens[suffix_token_start_index].value) !=
+          percent_suffixes_.end() &&
+      TokensAreValidEnding(tokens, suffix_token_start_index + 1)) {
+    return tokens[suffix_token_start_index].end;
+  }
+  if (tokens[suffix_token_start_index].is_whitespace) {
+    return FindPercentSuffixEndCodepoint(tokens, suffix_token_start_index + 1);
+  }
+
+  return -1;
+}
+
+bool NumberAnnotator::TryParseNumber(const UnicodeText& token_text,
+                                     const bool is_negative,
+                                     int64* parsed_int_value,
+                                     double* parsed_double_value) const {
+  if (token_text.ToUTF8String().size() >= max_number_of_digits_) {
+    return false;
+  }
+  const bool is_double = unilib_->ParseDouble(token_text, parsed_double_value);
+  if (!is_double) {
+    return false;
+  }
+  *parsed_int_value = std::trunc(*parsed_double_value);
+  if (is_negative) {
+    *parsed_int_value *= -1;
+    *parsed_double_value *= -1;
+  }
+
+  return true;
+}
+
+bool NumberAnnotator::FindAll(const UnicodeText& context,
+                              AnnotationUsecase annotation_usecase,
+                              std::vector<AnnotatedSpan>* result) const {
+  if (!options_->enabled()) {
+    return true;
+  }
+
+  const std::vector<Token> tokens = tokenizer_.Tokenize(context);
+  for (int i = 0; i < tokens.size(); ++i) {
+    const Token token = tokens[i];
+    if (tokens[i].value.empty() ||
+        !unilib_->IsDigit(
+            *UTF8ToUnicodeText(tokens[i].value, /*do_copy=*/false).begin())) {
+      continue;
+    }
+
     const UnicodeText token_text =
         UTF8ToUnicodeText(token.value, /*do_copy=*/false);
     int64 parsed_int_value;
     double parsed_double_value;
-    bool has_decimal;
-    int num_prefix_codepoints;
-    int num_suffix_codepoints;
-    if (ParseNumber(token_text, &parsed_int_value, &parsed_double_value,
-                    &has_decimal, &num_prefix_codepoints,
-                    &num_suffix_codepoints)) {
-      ClassificationResult classification{Collections::Number(),
-                                          options_->score()};
-      classification.numeric_value = parsed_int_value;
-      classification.numeric_double_value = parsed_double_value;
-      classification.priority_score =
-          has_decimal ? options_->float_number_priority_score()
-                      : options_->priority_score();
-
-      AnnotatedSpan annotated_span;
-      annotated_span.span = {token.start + num_prefix_codepoints,
-                             token.end - num_suffix_codepoints};
-      annotated_span.classification.push_back(classification);
-      result->push_back(annotated_span);
+    bool is_negative =
+        (i > 0) &&
+        unilib_->IsMinus(
+            *UTF8ToUnicodeText(tokens[i - 1].value, /*do_copy=*/false).begin());
+    if (!TryParseNumber(token_text, is_negative, &parsed_int_value,
+                        &parsed_double_value)) {
+      continue;
     }
-  }
-
-  if (options_->enable_percentage()) {
-    FindPercentages(context, result);
-  }
-
-  return true;
-}
-
-std::unordered_set<int> NumberAnnotator::FlatbuffersIntVectorToSet(
-    const flatbuffers::Vector<int32_t>* ints) {
-  if (ints == nullptr) {
-    return {};
-  }
-  return {ints->begin(), ints->end()};
-}
-
-std::vector<uint32> NumberAnnotator::FlatbuffersIntVectorToStdVector(
-    const flatbuffers::Vector<int32_t>* ints) {
-  if (ints == nullptr) {
-    return {};
-  }
-  return {ints->begin(), ints->end()};
-}
-
-namespace {
-bool ParseNextNumericCodepoint(int32 codepoint, int64* current_value) {
-  if (*current_value > INT64_MAX / 10 - 10) {
-    return false;
-  }
-
-  // NOTE: This currently just works with ASCII numbers.
-  *current_value = *current_value * 10 + codepoint - '0';
-  return true;
-}
-
-UnicodeText::const_iterator ConsumeAndParseNumber(
-    const UnicodeText::const_iterator& it_begin,
-    const UnicodeText::const_iterator& it_end, int64* int_result,
-    double* double_result, bool* has_decimal) {
-  *int_result = 0;
-  *has_decimal = false;
-
-  // See if there's a sign in the beginning of the number.
-  int sign = 1;
-  auto it = it_begin;
-  while (it != it_end && (*it == '-' || *it == '+')) {
-    if (*it == '-') {
-      sign = -1;
-    } else {
-      sign = 1;
-    }
-    ++it;
-  }
-
-  enum class State {
-    PARSING_WHOLE_PART = 1,
-    PARSING_FLOATING_PART = 2,
-    PARSING_DONE = 3,
-  };
-  State state = State::PARSING_WHOLE_PART;
-  int64 decimal_result = 0;
-  int64 decimal_result_denominator = 1;
-  int number_digits = 0;
-  while (it != it_end) {
-    switch (state) {
-      case State::PARSING_WHOLE_PART:
-        if (*it >= '0' && *it <= '9') {
-          if (!ParseNextNumericCodepoint(*it, int_result)) {
-            return it_begin;
-          }
-        } else if (*it == '.' || *it == ',') {
-          state = State::PARSING_FLOATING_PART;
-        } else {
-          state = State::PARSING_DONE;
-        }
-        break;
-      case State::PARSING_FLOATING_PART:
-        if (*it >= '0' && *it <= '9') {
-          *has_decimal = true;
-          if (!ParseNextNumericCodepoint(*it, &decimal_result)) {
-            state = State::PARSING_DONE;
-            break;
-          }
-          decimal_result_denominator *= 10;
-        } else {
-          state = State::PARSING_DONE;
-        }
-        break;
-      case State::PARSING_DONE:
-        break;
-    }
-
-    if (state == State::PARSING_DONE) {
-      break;
-    }
-    ++number_digits;
-    ++it;
-  }
-
-  if (number_digits == 0) {
-    return it_begin;
-  }
-
-  *int_result *= sign;
-  *double_result =
-      *int_result + decimal_result * 1.0 / decimal_result_denominator;
-
-  return it;
-}
-}  // namespace
-
-bool NumberAnnotator::ParseNumber(const UnicodeText& text, int64* int_result,
-                                  double* double_result, bool* has_decimal,
-                                  int* num_prefix_codepoints,
-                                  int* num_suffix_codepoints) const {
-  TC3_CHECK(int_result != nullptr && double_result != nullptr &&
-            num_prefix_codepoints != nullptr &&
-            num_suffix_codepoints != nullptr);
-  auto it = text.begin();
-  auto it_end = text.end();
-
-  // Strip boundary codepoints from both ends.
-  const CodepointSpan original_span{0, text.size_codepoints()};
-  const CodepointSpan stripped_span =
-      feature_processor_->StripBoundaryCodepoints(
-          text, original_span, ignored_prefix_span_boundary_codepoints_,
-          ignored_suffix_span_boundary_codepoints_);
-
-  const int num_stripped_end = (original_span.second - stripped_span.second);
-  std::advance(it, stripped_span.first);
-  std::advance(it_end, -num_stripped_end);
-
-  // Consume prefix codepoints.
-  *num_prefix_codepoints = stripped_span.first;
-  while (it != it_end) {
-    if (allowed_prefix_codepoints_.find(*it) ==
-        allowed_prefix_codepoints_.end()) {
-      break;
-    }
-
-    ++it;
-    ++(*num_prefix_codepoints);
-  }
-
-  auto it_start = it;
-  it =
-      ConsumeAndParseNumber(it, it_end, int_result, double_result, has_decimal);
-  if (it == it_start) {
-    return false;
-  }
-
-  // Consume suffix codepoints.
-  bool valid_suffix = true;
-  *num_suffix_codepoints = 0;
-  int ignored_suffix_codepoints = 0;
-  while (it != it_end) {
-    if (allowed_suffix_codepoints_.find(*it) !=
-        allowed_suffix_codepoints_.end()) {
-      // Keep track of allowed suffix codepoints.
-      ++(*num_suffix_codepoints);
-    } else if (ignored_suffix_span_boundary_codepoints_.find(*it) ==
-               ignored_suffix_span_boundary_codepoints_.end()) {
-      // There is a suffix codepoint but it's not part of the ignored list of
-      // codepoints, fail the number parsing.
-      // Note: We want to support cases like "13.", "34#", "123!" etc.
-      valid_suffix = false;
-      break;
-    } else {
-      ++ignored_suffix_codepoints;
-    }
-
-    ++it;
-  }
-  *num_suffix_codepoints += num_stripped_end;
-
-  return valid_suffix;
-}
-
-int NumberAnnotator::GetPercentSuffixLength(const UnicodeText& context,
-                                            int index_codepoints) const {
-  if (index_codepoints >= context.size_codepoints()) {
-    return -1;
-  }
-  auto context_it = context.begin();
-  std::advance(context_it, index_codepoints);
-  const StringPiece suffix_context(
-      context_it.utf8_data(),
-      std::distance(context_it.utf8_data(), context.end().utf8_data()));
-  StringSet::Match match;
-  percentage_suffixes_trie_.LongestPrefixMatch(suffix_context, &match);
-
-  if (match.match_length == -1) {
-    return match.match_length;
-  } else {
-    return UTF8ToUnicodeText(context_it.utf8_data(), match.match_length,
-                             /*do_copy=*/false)
-        .size_codepoints();
-  }
-}
-
-void NumberAnnotator::FindPercentages(
-    const UnicodeText& context, std::vector<AnnotatedSpan>* result) const {
-  for (auto& res : *result) {
-    if (res.classification.empty() ||
-        res.classification[0].collection != Collections::Number()) {
+    if (!TokensAreValidNumberPrefix(tokens, is_negative ? i - 2 : i - 1) ||
+        !TokensAreValidNumberSuffix(tokens, i + 1)) {
       continue;
     }
 
-    const int match_length = GetPercentSuffixLength(context, res.span.second);
-    if (match_length > 0) {
-      res.classification[0].collection = Collections::Percentage();
-      res.classification[0].priority_score =
-          options_->percentage_priority_score();
-      res.span = {res.span.first, res.span.second + match_length};
+    const bool has_decimal = !(parsed_int_value == parsed_double_value);
+    const int new_start_codepoint = is_negative ? token.start - 1 : token.start;
+
+    if (((1 << annotation_usecase) & options_->enabled_annotation_usecases()) !=
+        0) {
+      result->push_back(CreateAnnotatedSpan(
+          new_start_codepoint, token.end, parsed_int_value, parsed_double_value,
+          Collections::Number(), options_->score(),
+          /*priority_score=*/
+          has_decimal ? options_->float_number_priority_score()
+                      : options_->priority_score()));
+    }
+
+    const int percent_end_codepoint =
+        FindPercentSuffixEndCodepoint(tokens, i + 1);
+    if (percent_end_codepoint != -1 &&
+        ((1 << annotation_usecase) &
+         options_->percentage_annotation_usecases()) != 0) {
+      result->push_back(CreateAnnotatedSpan(
+          new_start_codepoint, percent_end_codepoint, parsed_int_value,
+          parsed_double_value, Collections::Percentage(), options_->score(),
+          options_->percentage_priority_score()));
     }
   }
+
+  return true;
+}
+
+AnnotatedSpan NumberAnnotator::CreateAnnotatedSpan(
+    const int start, const int end, const int int_value,
+    const double double_value, const std::string collection, const float score,
+    const float priority_score) const {
+  ClassificationResult classification{collection, score};
+  classification.numeric_value = int_value;
+  classification.numeric_double_value = double_value;
+  classification.priority_score = priority_score;
+
+  AnnotatedSpan annotated_span;
+  annotated_span.span = {start, end};
+  annotated_span.classification.push_back(classification);
+  return annotated_span;
+}
+
+std::unordered_set<std::string>
+NumberAnnotator::FromFlatbufferStringToUnordredSet(
+    const flatbuffers::String* flatbuffer_percent_strings) {
+  std::unordered_set<std::string> strings_set;
+  if (flatbuffer_percent_strings == nullptr) {
+    return strings_set;
+  }
+
+  const std::string percent_strings = flatbuffer_percent_strings->str();
+  for (StringPiece suffix : strings::Split(percent_strings, '\0')) {
+    std::string percent_suffix = suffix.ToString();
+    percent_suffix.erase(
+        std::remove_if(percent_suffix.begin(), percent_suffix.end(),
+                       [](unsigned char x) { return std::isspace(x); }),
+        percent_suffix.end());
+    strings_set.insert(percent_suffix);
+  }
+
+  return strings_set;
 }
 
 }  // namespace libtextclassifier3

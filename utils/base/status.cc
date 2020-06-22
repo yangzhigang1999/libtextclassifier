@@ -24,12 +24,6 @@ Status::Status() : code_(StatusCode::OK) {}
 Status::Status(StatusCode error, const std::string& message)
     : code_(error), message_(message) {}
 
-Status& Status::operator=(const Status& other) {
-  code_ = other.code_;
-  message_ = other.message_;
-  return *this;
-}
-
 logging::LoggingStringStream& operator<<(logging::LoggingStringStream& stream,
                                          const Status& status) {
   stream << status.error_code();

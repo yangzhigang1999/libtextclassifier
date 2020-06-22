@@ -25,10 +25,14 @@ namespace builtin {
 TfLiteRegistration* Register_ADD();
 TfLiteRegistration* Register_CONCATENATION();
 TfLiteRegistration* Register_CONV_2D();
+TfLiteRegistration* Register_EQUAL();
 TfLiteRegistration* Register_FULLY_CONNECTED();
+TfLiteRegistration* Register_GREATER_EQUAL();
 TfLiteRegistration* Register_L2_NORMALIZATION();
 TfLiteRegistration* Register_MUL();
 TfLiteRegistration* Register_RESHAPE();
+TfLiteRegistration* Register_REDUCE_MAX();
+TfLiteRegistration* Register_REDUCE_ANY();
 TfLiteRegistration* Register_SOFTMAX();
 TfLiteRegistration* Register_GATHER();
 TfLiteRegistration* Register_TRANSPOSE();
@@ -48,6 +52,12 @@ TfLiteRegistration* Register_SUM();
 TfLiteRegistration* Register_PACK();
 TfLiteRegistration* Register_DEQUANTIZE();
 TfLiteRegistration* Register_MEAN();
+TfLiteRegistration* Register_LESS();
+TfLiteRegistration* Register_TILE();
+TfLiteRegistration* Register_SQUARED_DIFFERENCE();
+TfLiteRegistration* Register_RSQRT();
+TfLiteRegistration* Register_LOG_SOFTMAX();
+TfLiteRegistration* Register_WHERE();
 }  // namespace builtin
 }  // namespace ops
 }  // namespace tflite
@@ -70,10 +80,15 @@ void RegisterSelectedOps(tflite::MutableOpResolver* resolver) {
                        tflite::ops::builtin::Register_CONV_2D(),
                        /*min_version=*/1,
                        /*max_version=*/3);
+  resolver->AddBuiltin(::tflite::BuiltinOperator_EQUAL,
+                       ::tflite::ops::builtin::Register_EQUAL());
+
   resolver->AddBuiltin(tflite::BuiltinOperator_FULLY_CONNECTED,
                        tflite::ops::builtin::Register_FULLY_CONNECTED(),
                        /*min_version=*/1,
                        /*max_version=*/4);
+  resolver->AddBuiltin(::tflite::BuiltinOperator_GREATER_EQUAL,
+                       ::tflite::ops::builtin::Register_GREATER_EQUAL());
   resolver->AddBuiltin(tflite::BuiltinOperator_L2_NORMALIZATION,
                        tflite::ops::builtin::Register_L2_NORMALIZATION(),
                        /*min_version=*/1,
@@ -82,6 +97,10 @@ void RegisterSelectedOps(tflite::MutableOpResolver* resolver) {
                        tflite::ops::builtin::Register_MUL());
   resolver->AddBuiltin(tflite::BuiltinOperator_RESHAPE,
                        tflite::ops::builtin::Register_RESHAPE());
+  resolver->AddBuiltin(::tflite::BuiltinOperator_REDUCE_MAX,
+                       ::tflite::ops::builtin::Register_REDUCE_MAX());
+  resolver->AddBuiltin(::tflite::BuiltinOperator_REDUCE_ANY,
+                       ::tflite::ops::builtin::Register_REDUCE_ANY());
   resolver->AddBuiltin(tflite::BuiltinOperator_SOFTMAX,
                        tflite::ops::builtin::Register_SOFTMAX(),
                        /*min_version=*/1,
@@ -144,6 +163,18 @@ void RegisterSelectedOps(tflite::MutableOpResolver* resolver) {
                        /*max_version=*/2);
   resolver->AddBuiltin(tflite::BuiltinOperator_MEAN,
                        tflite::ops::builtin::Register_MEAN());
+  resolver->AddBuiltin(tflite::BuiltinOperator_LESS,
+                       tflite::ops::builtin::Register_LESS());
+  resolver->AddBuiltin(tflite::BuiltinOperator_TILE,
+                       tflite::ops::builtin::Register_TILE());
+  resolver->AddBuiltin(tflite::BuiltinOperator_SQUARED_DIFFERENCE,
+                       tflite::ops::builtin::Register_SQUARED_DIFFERENCE());
+  resolver->AddBuiltin(tflite::BuiltinOperator_RSQRT,
+                       tflite::ops::builtin::Register_RSQRT());
+  resolver->AddBuiltin(tflite::BuiltinOperator_LOG_SOFTMAX,
+                       tflite::ops::builtin::Register_LOG_SOFTMAX());
+  resolver->AddBuiltin(::tflite::BuiltinOperator_WHERE,
+                       ::tflite::ops::builtin::Register_WHERE());
 }
 #else
 void RegisterSelectedOps(tflite::MutableOpResolver* resolver) {

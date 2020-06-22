@@ -22,8 +22,8 @@ libtextclassifier know because then,
 into libtextclassifier's ebuild.
 
 
-[chrome-icu-ebuild-folder]: https://cs.corp.google.com/chromeos_public/src/third_party/chromiumos-overlay/chromeos-base/chrome-icu/
+[chrome-icu-ebuild-folder]: https://chromium.googlesource.com/chromiumos/overlays/chromiumos-overlay/+/refs/heads/master/chromeos-base/chrome-icu/
 [chrome-init-icu]: https://source.chromium.org/chromium/chromium/src/+/master:base/i18n/icu_util.cc;l=234;drc=928bcad29884064f83bf05ecadf82369f8b4622f?originalUrl=https:%2F%2Fcs.chromium.org%2F
 [ml-9999-ebuild]: https://source.chromium.org/chromiumos/chromiumos/codesearch/+/master:src/third_party/chromiumos-overlay/chromeos-base/ml/ml-9999.ebuild
 [ml-service]: https://source.chromium.org/chromiumos/chromiumos/codesearch/+/master:src/platform2/ml/;l=1?q=ml%2F&sq=&ss=chromiumos
-[tclib-depend-chrome-icu]: https://chromium.git.corp.google.com/chromiumos/overlays/chromiumos-overlay/+/0aed47ff3840a3fb3c8523c34c11df3974efc32f/dev-libs/libtextclassifier/libtextclassifier-9999.ebuild#24
+[tclib-depend-chrome-icu]: https://chromium.googlesource.com/chromiumos/overlays/chromiumos-overlay/+/refs/heads/master/dev-libs/libtextclassifier/libtextclassifier-9999.ebuild#24

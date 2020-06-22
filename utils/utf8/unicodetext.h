@@ -68,7 +68,7 @@ class UnicodeText {
   class const_iterator;
 
   UnicodeText();  // Create an empty text.
-  UnicodeText(const UnicodeText& src);
+  UnicodeText(const UnicodeText& src, bool do_copy = true);
   UnicodeText& operator=(UnicodeText&& src);
   ~UnicodeText();
 
@@ -179,6 +179,9 @@ class UnicodeText {
                                    const const_iterator& it_end);
   static UnicodeText Substring(const UnicodeText& text, int begin_codepoint,
                                int end_codepoint, bool do_copy = true);
+  static UnicodeText Substring(const const_iterator& it_begin,
+                               const const_iterator& it_end,
+                               bool do_copy = true);
 
  private:
   friend class const_iterator;
@@ -219,6 +222,8 @@ typedef std::pair<UnicodeText::const_iterator, UnicodeText::const_iterator>
 // std::string, or from ::string to std::string, because if this happens it
 // often results in invalid memory access to a temporary object created during
 // such conversion (if do_copy == false).
+// NOTE: These methods don't check if the input string is UTF8 well formed, for
+// efficiency reasons. Use UnicodeText::is_valid() when explicitly needed.
 UnicodeText UTF8ToUnicodeText(const char* utf8_buf, int len,
                               bool do_copy = true);
 UnicodeText UTF8ToUnicodeText(const char* utf8_buf, bool do_copy = true);

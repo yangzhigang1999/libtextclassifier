@@ -20,14 +20,14 @@
 
 namespace libtextclassifier3 {
 
-UnicodeText NormalizeText(const UniLib* unilib,
+UnicodeText NormalizeText(const UniLib& unilib,
                           const NormalizationOptions* normalization_options,
                           const UnicodeText& text) {
   return NormalizeTextCodepointWise(
       unilib, normalization_options->codepointwise_normalization(), text);
 }
 
-UnicodeText NormalizeTextCodepointWise(const UniLib* unilib,
+UnicodeText NormalizeTextCodepointWise(const UniLib& unilib,
                                        const uint32 codepointwise_ops,
                                        const UnicodeText& text) {
   // Sanity check.
@@ -41,7 +41,7 @@ UnicodeText NormalizeTextCodepointWise(const UniLib* unilib,
     // Skip whitespace.
     if ((codepointwise_ops &
          NormalizationOptions_::CodepointwiseNormalizationOp_DROP_WHITESPACE) &&
-        unilib->IsWhitespace(codepoint)) {
+        unilib.IsWhitespace(codepoint)) {
       continue;
     }
 
@@ -49,7 +49,7 @@ UnicodeText NormalizeTextCodepointWise(const UniLib* unilib,
     if ((codepointwise_ops &
          NormalizationOptions_::
              CodepointwiseNormalizationOp_DROP_PUNCTUATION) &&
-        unilib->IsPunctuation(codepoint)) {
+        unilib.IsPunctuation(codepoint)) {
       continue;
     }
 
@@ -58,12 +58,12 @@ UnicodeText NormalizeTextCodepointWise(const UniLib* unilib,
     // Lower case.
     if (codepointwise_ops &
         NormalizationOptions_::CodepointwiseNormalizationOp_LOWERCASE) {
-      normalized_codepoint = unilib->ToLower(normalized_codepoint);
+      normalized_codepoint = unilib.ToLower(normalized_codepoint);
 
       // Upper case.
     } else if (codepointwise_ops &
                NormalizationOptions_::CodepointwiseNormalizationOp_UPPERCASE) {
-      normalized_codepoint = unilib->ToUpper(normalized_codepoint);
+      normalized_codepoint = unilib.ToUpper(normalized_codepoint);
     }
 
     result.push_back(normalized_codepoint);

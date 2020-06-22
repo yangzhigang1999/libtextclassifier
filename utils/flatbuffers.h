@@ -23,6 +23,7 @@
 #include <string>
 
 #include "annotator/model_generated.h"
+#include "utils/base/logging.h"
 #include "utils/flatbuffers_generated.h"
 #include "utils/strings/stringpiece.h"
 #include "utils/variant.h"
@@ -128,8 +129,37 @@ class ReflectiveFlatbuffer {
                           reflection::Field const** field);
 
   // Checks whether a variant value type agrees with a field type.
-  bool IsMatchingType(const reflection::Field* field,
-                      const Variant& value) const;
+  template <typename T>
+  bool IsMatchingType(const reflection::BaseType type) const {
+    switch (type) {
+      case reflection::Bool:
+        return std::is_same<T, bool>::value;
+      case reflection::Byte:
+        return std::is_same<T, int8>::value;
+      case reflection::UByte:
+        return std::is_same<T, uint8>::value;
+      case reflection::Int:
+        return std::is_same<T, int32>::value;
+      case reflection::UInt:
+        return std::is_same<T, uint32>::value;
+      case reflection::Long:
+        return std::is_same<T, int64>::value;
+      case reflection::ULong:
+        return std::is_same<T, uint64>::value;
+      case reflection::Float:
+        return std::is_same<T, float>::value;
+      case reflection::Double:
+        return std::is_same<T, double>::value;
+      case reflection::String:
+        return std::is_same<T, std::string>::value ||
+               std::is_same<T, StringPiece>::value ||
+               std::is_same<T, const char*>::value;
+      case reflection::Obj:
+        return std::is_same<T, ReflectiveFlatbuffer>::value;
+      default:
+        return false;
+    }
+  }
 
   // Sets a (primitive) field to a specific value.
   // Returns true if successful, and false if the field was not found or the
@@ -152,7 +182,7 @@ class ReflectiveFlatbuffer {
       return false;
     }
     Variant variant_value(value);
-    if (!IsMatchingType(field, variant_value)) {
+    if (!IsMatchingType<T>(field->type()->base_type())) {
       TC3_LOG(ERROR) << "Type mismatch for field `" << field->name()->str()
                      << "`, expected: " << field->type()->base_type()
                      << ", got: " << variant_value.GetType();
@@ -191,6 +221,11 @@ class ReflectiveFlatbuffer {
 
   template <typename T>
   TypedRepeatedField<T>* Repeated(const reflection::Field* field) {
+    if (!IsMatchingType<T>(field->type()->element())) {
+      TC3_LOG(ERROR) << "Type mismatch for field `" << field->name()->str()
+                     << "`";
+      return nullptr;
+    }
     return static_cast<TypedRepeatedField<T>*>(Repeated(field));
   }
 
@@ -223,7 +258,17 @@ class ReflectiveFlatbuffer {
   // representation.
   std::string ToTextProto() const;
 
+  bool HasExplicitlySetFields() const {
+    return !fields_.empty() || !children_.empty() || !repeated_fields_.empty();
+  }
+
  private:
+  // Helper function for merging given repeated field from given flatbuffer
+  // table. Appends the elements.
+  template <typename T>
+  bool AppendFromVector(const flatbuffers::Table* from,
+                        const reflection::Field* field);
+
   const reflection::Schema* const schema_;
   const reflection::Object* const type_;
 
@@ -344,6 +389,30 @@ class TypedRepeatedField<ReflectiveFlatbuffer> : public RepeatedField {
 // Resolves field lookups by name to the concrete field offsets.
 bool SwapFieldNamesForOffsetsInPath(const reflection::Schema* schema,
                                     FlatbufferFieldPathT* path);
+
+template <typename T>
+bool ReflectiveFlatbuffer::AppendFromVector(const flatbuffers::Table* from,
+                                            const reflection::Field* field) {
+  const flatbuffers::Vector<T>* from_vector =
+      from->GetPointer<const flatbuffers::Vector<T>*>(field->offset());
+  if (from_vector == nullptr) {
+    return false;
+  }
+
+  TypedRepeatedField<T>* to_repeated = Repeated<T>(field);
+  for (const T element : *from_vector) {
+    to_repeated->Add(element);
+  }
+  return true;
+}
+
+inline logging::LoggingStringStream& operator<<(
+    logging::LoggingStringStream& stream, flatbuffers::String* message) {
+  if (message != nullptr) {
+    stream.message.append(message->c_str(), message->size());
+  }
+  return stream;
+}
 
 }  // namespace libtextclassifier3
 

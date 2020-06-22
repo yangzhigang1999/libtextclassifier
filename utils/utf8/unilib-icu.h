@@ -19,6 +19,8 @@
 #ifndef LIBTEXTCLASSIFIER_UTILS_UTF8_UNILIB_ICU_H_
 #define LIBTEXTCLASSIFIER_UTILS_UTF8_UNILIB_ICU_H_
 
+#include <cmath>
+#include <functional>
 #include <memory>
 #include <mutex>  // NOLINT(build/c++11)
 
@@ -34,7 +36,10 @@ namespace libtextclassifier3 {
 
 class UniLibBase {
  public:
-  bool ParseInt32(const UnicodeText& text, int* result) const;
+  bool ParseInt32(const UnicodeText& text, int32* result) const;
+  bool ParseInt64(const UnicodeText& text, int64* result) const;
+  bool ParseDouble(const UnicodeText& text, double* result) const;
+
   bool IsOpeningBracket(char32 codepoint) const;
   bool IsClosingBracket(char32 codepoint) const;
   bool IsWhitespace(char32 codepoint) const;
@@ -65,7 +70,7 @@ class UniLibBase {
     bool ApproximatelyMatches(int* status);
 
     // Finds occurrences of the pattern in the input text.
-    // Can be called repeatedly to find all occurences. A call will update
+    // Can be called repeatedly to find all occurrences. A call will update
     // internal state, so that 'Start', 'End' and 'Group' can be called to get
     // information about the match.
     // NOTE: Any call to ApproximatelyMatches() in between Find() calls will
@@ -164,7 +169,46 @@ class UniLibBase {
       const UnicodeText& regex) const;
   std::unique_ptr<BreakIterator> CreateBreakIterator(
       const UnicodeText& text) const;
+
+ private:
+  template <class T>
+  bool ParseInt(const UnicodeText& text, T* result) const;
 };
+
+template <class T>
+bool UniLibBase::ParseInt(const UnicodeText& text, T* result) const {
+  UErrorCode status = U_ZERO_ERROR;
+  std::unique_ptr<UNumberFormat, std::function<void(UNumberFormat*)>>
+      format_alias(
+          unum_open(/*style=*/UNUM_DECIMAL, /*pattern=*/nullptr,
+                    /*patternLength=*/0, /*locale=*/"en_US_POSIX",
+                    /*parseErr=*/nullptr, &status),
+          [](UNumberFormat* format_alias) { unum_close(format_alias); });
+  if (U_FAILURE(status)) {
+    return false;
+  }
+  icu::UnicodeString utf8_string = icu::UnicodeString::fromUTF8(
+      icu::StringPiece(text.data(), text.size_bytes()));
+  int parse_index = 0;
+
+  // Using the unum_parseDouble here because unum_parse called for an input
+  // like "1.23" returns 1, parse_index == utf8_string.length() and the status
+  // is not error. Consequently there is no indication about floating numbers.
+  const double double_parse =
+      unum_parseDouble(format_alias.get(), utf8_string.getBuffer(),
+                       utf8_string.length(), &parse_index, &status);
+  if (isnan(double_parse) || isinf(double_parse) ||
+      double_parse >= std::numeric_limits<T>::max() ||
+      double_parse <= std::numeric_limits<T>::min()) {
+    return false;
+  }
+  *result = std::trunc(double_parse);
+  if (U_FAILURE(status) || parse_index != utf8_string.length() ||
+      *result != double_parse) {
+    return false;
+  }
+  return true;
+}
 
 }  // namespace libtextclassifier3
 

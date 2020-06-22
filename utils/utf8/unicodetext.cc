@@ -97,7 +97,13 @@ void UnicodeText::Repr::clear() {
 
 UnicodeText::UnicodeText() {}
 
-UnicodeText::UnicodeText(const UnicodeText& src) { Copy(src); }
+UnicodeText::UnicodeText(const UnicodeText& src, bool do_copy) {
+  if (do_copy) {
+    Copy(src);
+  } else {
+    repr_.PointTo(src.repr_.data_, src.repr_.size_);
+  }
+}
 
 UnicodeText& UnicodeText::operator=(UnicodeText&& src) {
   this->repr_ = std::move(src.repr_);
@@ -210,8 +216,8 @@ std::string UnicodeText::UTF8Substring(int begin_codepoint,
                                        int end_codepoint) const {
   auto span_begin = begin();
   std::advance(span_begin, begin_codepoint);
-  auto span_end = begin();
-  std::advance(span_end, end_codepoint);
+  auto span_end = span_begin;
+  std::advance(span_end, end_codepoint - begin_codepoint);
   return UTF8Substring(span_begin, span_end);
 }
 
@@ -227,6 +233,11 @@ UnicodeText UnicodeText::Substring(const UnicodeText& text, int begin_codepoint,
   auto it_end = text.begin();
   std::advance(it_end, end_codepoint);
 
+  return Substring(it_begin, it_end, do_copy);
+}
+
+UnicodeText UnicodeText::Substring(const const_iterator& it_begin,
+                                   const const_iterator& it_end, bool do_copy) {
   if (do_copy) {
     UnicodeText result;
     result.repr_.Copy(it_begin.it_, it_end.it_ - it_begin.it_);
@@ -246,7 +257,7 @@ UnicodeText::~UnicodeText() {}
 // inherited from boost::iterator_facade
 // (http://boost.org/libs/iterator/doc/iterator_facade.html).
 
-UnicodeText::const_iterator::const_iterator() : it_(0) {}
+UnicodeText::const_iterator::const_iterator() : it_(nullptr) {}
 
 UnicodeText::const_iterator& UnicodeText::const_iterator::operator=(
     const const_iterator& other) {
@@ -272,26 +283,11 @@ char32 UnicodeText::const_iterator::operator*() const {
   // error-checking, and we're guaranteed that our data is valid
   // UTF-8. Also, we expect this routine to be called very often. So
   // for speed, we do the calculation ourselves.)
-
-  // Convert from UTF-8
-  unsigned char byte1 = static_cast<unsigned char>(it_[0]);
-  if (byte1 < 0x80) return byte1;
-
-  unsigned char byte2 = static_cast<unsigned char>(it_[1]);
-  if (byte1 < 0xE0) return ((byte1 & 0x1F) << 6) | (byte2 & 0x3F);
-
-  unsigned char byte3 = static_cast<unsigned char>(it_[2]);
-  if (byte1 < 0xF0) {
-    return ((byte1 & 0x0F) << 12) | ((byte2 & 0x3F) << 6) | (byte3 & 0x3F);
-  }
-
-  unsigned char byte4 = static_cast<unsigned char>(it_[3]);
-  return ((byte1 & 0x07) << 18) | ((byte2 & 0x3F) << 12) |
-         ((byte3 & 0x3F) << 6) | (byte4 & 0x3F);
+  return ValidCharToRune(it_);
 }
 
 UnicodeText::const_iterator& UnicodeText::const_iterator::operator++() {
-  it_ += GetNumBytesForNonZeroUTF8Char(it_);
+  it_ += GetNumBytesForUTF8Char(it_);
   return *this;
 }
 

@@ -165,6 +165,37 @@ table ParcelTracking {
   tracking_number:string;
 }
 
+// Parsed money amount.
+namespace libtextclassifier3.EntityData_;
+table Money {
+  // String representation of currency, unnormalized.
+  unnormalized_currency:string;
+
+  // Whole part of the amount (e.g. 123 from "CHF 123.45").
+  amount_whole_part:int;
+
+  // Decimal part of the amount (e.g. 45 from "CHF 123.45").
+  amount_decimal_part:int;
+
+  // Money amount (e.g. 123.45 from "CHF 123.45").
+  unnormalized_amount:string;
+}
+
+namespace libtextclassifier3.EntityData_.Translate_;
+table LanguagePredictionResult {
+  // BCP 47 tag for the language prediction result.
+  language_tag:string;
+
+  // Confidence score for the language prediction result.
+  confidence_score:float;
+}
+
+// Details about detected foreign text.
+namespace libtextclassifier3.EntityData_;
+table Translate {
+  language_prediction_results:[Translate_.LanguagePredictionResult];
+}
+
 // Represents an entity annotated in text.
 namespace libtextclassifier3;
 table EntityData {
@@ -186,6 +217,8 @@ table EntityData {
   isbn:EntityData_.Isbn;
   iban:EntityData_.Iban;
   parcel:EntityData_.ParcelTracking;
+  money:EntityData_.Money;
+  translate:EntityData_.Translate;
 }
 
 root_type libtextclassifier3.EntityData;

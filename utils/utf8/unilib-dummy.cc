@@ -18,6 +18,7 @@
 #include <cctype>
 #include <map>
 
+#include "utils/base/logging.h"
 #include "utils/strings/numbers.h"
 #include "utils/utf8/unilib-common.h"
 
@@ -25,6 +26,14 @@ namespace libtextclassifier3 {
 
 bool UniLibBase::ParseInt32(const UnicodeText& text, int* result) const {
   return libtextclassifier3::ParseInt32(text.data(), result);
+}
+
+bool UniLibBase::ParseInt64(const UnicodeText& text, int64* result) const {
+  return libtextclassifier3::ParseInt64(text.data(), result);
+}
+
+bool UniLibBase::ParseDouble(const UnicodeText& text, double* result) const {
+  return libtextclassifier3::ParseDouble(text.data(), result);
 }
 
 bool UniLibBase::IsOpeningBracket(char32 codepoint) const {

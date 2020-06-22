@@ -113,6 +113,11 @@ class Collections {
         *[]() { return new std::string("percentage"); }();
     return value;
   }
+  static const std::string& PersonName() {
+    static const std::string& value =
+        *[]() { return new std::string("person_name"); }();
+    return value;
+  }
   static const std::string& Phone() {
     static const std::string& value =
         *[]() { return new std::string("phone"); }();
@@ -123,9 +128,19 @@ class Collections {
         *[]() { return new std::string("tracking_number"); }();
     return value;
   }
+  static const std::string& Translate() {
+    static const std::string& value =
+        *[]() { return new std::string("translate"); }();
+    return value;
+  }
   static const std::string& Url() {
     static const std::string& value =
         *[]() { return new std::string("url"); }();
+    return value;
+  }
+  static const std::string& OtpCode() {
+    static const std::string& value =
+        *[]() { return new std::string("otp_code"); }();
     return value;
   }
 };

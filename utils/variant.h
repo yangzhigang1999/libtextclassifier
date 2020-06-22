@@ -18,6 +18,7 @@
 
 #include <map>
 #include <string>
+#include <vector>
 
 #include "utils/base/integral_types.h"
 #include "utils/base/logging.h"
@@ -30,19 +31,35 @@ class Variant {
  public:
   enum Type {
     TYPE_EMPTY = 0,
-    TYPE_INT_VALUE = 1,
-    TYPE_INT64_VALUE = 2,
-    TYPE_FLOAT_VALUE = 3,
-    TYPE_DOUBLE_VALUE = 4,
-    TYPE_BOOL_VALUE = 5,
-    TYPE_STRING_VALUE = 6,
+    TYPE_INT8_VALUE = 1,
+    TYPE_UINT8_VALUE = 2,
+    TYPE_INT_VALUE = 3,
+    TYPE_UINT_VALUE = 4,
+    TYPE_INT64_VALUE = 5,
+    TYPE_UINT64_VALUE = 6,
+    TYPE_FLOAT_VALUE = 7,
+    TYPE_DOUBLE_VALUE = 8,
+    TYPE_BOOL_VALUE = 9,
+    TYPE_STRING_VALUE = 10,
+    TYPE_STRING_VECTOR_VALUE = 11,
+    TYPE_FLOAT_VECTOR_VALUE = 12,
+    TYPE_INT_VECTOR_VALUE = 13,
+    TYPE_STRING_VARIANT_MAP_VALUE = 14,
   };
 
   Variant() : type_(TYPE_EMPTY) {}
+  explicit Variant(const int8_t value)
+      : type_(TYPE_INT8_VALUE), int8_value_(value) {}
+  explicit Variant(const uint8_t value)
+      : type_(TYPE_UINT8_VALUE), uint8_value_(value) {}
   explicit Variant(const int value)
       : type_(TYPE_INT_VALUE), int_value_(value) {}
+  explicit Variant(const uint value)
+      : type_(TYPE_UINT_VALUE), uint_value_(value) {}
   explicit Variant(const int64 value)
       : type_(TYPE_INT64_VALUE), long_value_(value) {}
+  explicit Variant(const uint64 value)
+      : type_(TYPE_UINT64_VALUE), ulong_value_(value) {}
   explicit Variant(const float value)
       : type_(TYPE_FLOAT_VALUE), float_value_(value) {}
   explicit Variant(const double value)
@@ -55,17 +72,46 @@ class Variant {
       : type_(TYPE_STRING_VALUE), string_value_(value) {}
   explicit Variant(const bool value)
       : type_(TYPE_BOOL_VALUE), bool_value_(value) {}
+  explicit Variant(const std::vector<std::string>& value)
+      : type_(TYPE_STRING_VECTOR_VALUE), string_vector_value_(value) {}
+  explicit Variant(const std::vector<float>& value)
+      : type_(TYPE_FLOAT_VECTOR_VALUE), float_vector_value_(value) {}
+  explicit Variant(const std::vector<int>& value)
+      : type_(TYPE_INT_VECTOR_VALUE), int_vector_value_(value) {}
+  explicit Variant(const std::map<std::string, Variant>& value)
+      : type_(TYPE_STRING_VARIANT_MAP_VALUE),
+        string_variant_map_value_(value) {}
 
   Variant& operator=(const Variant&) = default;
+
+  int Int8Value() const {
+    TC3_CHECK(HasInt8());
+    return int8_value_;
+  }
+
+  int UInt8Value() const {
+    TC3_CHECK(HasUInt8());
+    return uint8_value_;
+  }
 
   int IntValue() const {
     TC3_CHECK(HasInt());
     return int_value_;
   }
 
+  uint UIntValue() const {
+    TC3_CHECK(HasUInt());
+    return uint_value_;
+  }
+
   int64 Int64Value() const {
     TC3_CHECK(HasInt64());
     return long_value_;
+  }
+
+  uint64 UInt64Value() const {
+    TC3_CHECK(HasUInt64());
+    return ulong_value_;
   }
 
   float FloatValue() const {
@@ -88,13 +134,41 @@ class Variant {
     return string_value_;
   }
 
+  const std::vector<std::string>& StringVectorValue() const {
+    TC3_CHECK(HasStringVector());
+    return string_vector_value_;
+  }
+
+  const std::vector<float>& FloatVectorValue() const {
+    TC3_CHECK(HasFloatVector());
+    return float_vector_value_;
+  }
+
+  const std::vector<int>& IntVectorValue() const {
+    TC3_CHECK(HasIntVector());
+    return int_vector_value_;
+  }
+
+  const std::map<std::string, Variant>& StringVariantMapValue() const {
+    TC3_CHECK(HasStringVariantMap());
+    return string_variant_map_value_;
+  }
+
   // Converts the value of this variant to its string representation, regardless
   // of the type of the actual value.
   std::string ToString() const;
 
+  bool HasInt8() const { return type_ == TYPE_INT8_VALUE; }
+
+  bool HasUInt8() const { return type_ == TYPE_UINT8_VALUE; }
+
   bool HasInt() const { return type_ == TYPE_INT_VALUE; }
 
+  bool HasUInt() const { return type_ == TYPE_UINT_VALUE; }
+
   bool HasInt64() const { return type_ == TYPE_INT64_VALUE; }
+
+  bool HasUInt64() const { return type_ == TYPE_UINT64_VALUE; }
 
   bool HasFloat() const { return type_ == TYPE_FLOAT_VALUE; }
 
@@ -104,6 +178,16 @@ class Variant {
 
   bool HasString() const { return type_ == TYPE_STRING_VALUE; }
 
+  bool HasStringVector() const { return type_ == TYPE_STRING_VECTOR_VALUE; }
+
+  bool HasFloatVector() const { return type_ == TYPE_FLOAT_VECTOR_VALUE; }
+
+  bool HasIntVector() const { return type_ == TYPE_INT_VECTOR_VALUE; }
+
+  bool HasStringVariantMap() const {
+    return type_ == TYPE_STRING_VARIANT_MAP_VALUE;
+  }
+
   Type GetType() const { return type_; }
 
   bool HasValue() const { return type_ != TYPE_EMPTY; }
@@ -111,13 +195,21 @@ class Variant {
  private:
   Type type_;
   union {
+    int8_t int8_value_;
+    uint8_t uint8_value_;
     int int_value_;
+    uint uint_value_;
     int64 long_value_;
+    uint64 ulong_value_;
     float float_value_;
     double double_value_;
     bool bool_value_;
   };
   std::string string_value_;
+  std::vector<std::string> string_vector_value_;
+  std::vector<float> float_vector_value_;
+  std::vector<int> int_vector_value_;
+  std::map<std::string, Variant> string_variant_map_value_;
 };
 
 // Pretty-printing function for Variant.

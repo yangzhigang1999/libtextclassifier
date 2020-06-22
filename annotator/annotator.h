@@ -27,113 +27,30 @@
 #include "annotator/contact/contact-engine.h"
 #include "annotator/datetime/parser.h"
 #include "annotator/duration/duration.h"
+#include "annotator/experimental/experimental.h"
 #include "annotator/feature-processor.h"
+#include "annotator/grammar/dates/cfg-datetime-annotator.h"
+#include "annotator/grammar/grammar-annotator.h"
 #include "annotator/installed_app/installed-app-engine.h"
 #include "annotator/knowledge/knowledge-engine.h"
 #include "annotator/model-executor.h"
 #include "annotator/model_generated.h"
 #include "annotator/number/number.h"
+#include "annotator/person_name/person-name-engine.h"
 #include "annotator/strip-unpaired-brackets.h"
+#include "annotator/translate/translate.h"
 #include "annotator/types.h"
 #include "annotator/zlib-utils.h"
+#include "utils/base/status.h"
+#include "utils/base/statusor.h"
 #include "utils/flatbuffers.h"
 #include "utils/i18n/locale.h"
 #include "utils/memory/mmap.h"
 #include "utils/utf8/unilib.h"
 #include "utils/zlib/tclib_zlib.h"
+#include "lang_id/lang-id.h"
 
 namespace libtextclassifier3 {
-
-// Aliases for long enum values.
-const AnnotationUsecase ANNOTATION_USECASE_SMART =
-    AnnotationUsecase_ANNOTATION_USECASE_SMART;
-const AnnotationUsecase ANNOTATION_USECASE_RAW =
-    AnnotationUsecase_ANNOTATION_USECASE_RAW;
-
-struct SelectionOptions {
-  // Comma-separated list of locale specification for the input text (BCP 47
-  // tags).
-  std::string locales;
-
-  // Comma-separated list of BCP 47 language tags.
-  std::string detected_text_language_tags;
-
-  // Tailors the output annotations according to the specified use-case.
-  AnnotationUsecase annotation_usecase = ANNOTATION_USECASE_SMART;
-
-  bool operator==(const SelectionOptions& other) const {
-    return this->locales == other.locales &&
-           this->annotation_usecase == other.annotation_usecase &&
-           this->detected_text_language_tags ==
-               other.detected_text_language_tags;
-  }
-};
-
-struct ClassificationOptions {
-  // For parsing relative datetimes, the reference now time against which the
-  // relative datetimes get resolved.
-  // UTC milliseconds since epoch.
-  int64 reference_time_ms_utc = 0;
-
-  // Timezone in which the input text was written (format as accepted by ICU).
-  std::string reference_timezone;
-
-  // Comma-separated list of locale specification for the input text (BCP 47
-  // tags).
-  std::string locales;
-
-  // Comma-separated list of language tags.
-  std::string detected_text_language_tags;
-
-  // Tailors the output annotations according to the specified use-case.
-  AnnotationUsecase annotation_usecase = ANNOTATION_USECASE_SMART;
-
-  bool operator==(const ClassificationOptions& other) const {
-    return this->reference_time_ms_utc == other.reference_time_ms_utc &&
-           this->reference_timezone == other.reference_timezone &&
-           this->locales == other.locales &&
-           this->detected_text_language_tags ==
-               other.detected_text_language_tags &&
-           this->annotation_usecase == other.annotation_usecase;
-  }
-};
-
-struct AnnotationOptions {
-  // For parsing relative datetimes, the reference now time against which the
-  // relative datetimes get resolved.
-  // UTC milliseconds since epoch.
-  int64 reference_time_ms_utc = 0;
-
-  // Timezone in which the input text was written (format as accepted by ICU).
-  std::string reference_timezone;
-
-  // Comma-separated list of locale specification for the input text (BCP 47
-  // tags).
-  std::string locales;
-
-  // Comma-separated list of language tags.
-  std::string detected_text_language_tags;
-
-  // List of entity types that should be used for annotation.
-  std::unordered_set<std::string> entity_types;
-
-  // If true, serialized_entity_data in the results is populated."
-  bool is_serialized_entity_data_enabled = false;
-
-  // Tailors the output annotations according to the specified use-case.
-  AnnotationUsecase annotation_usecase = ANNOTATION_USECASE_SMART;
-
-  bool operator==(const AnnotationOptions& other) const {
-    return this->reference_time_ms_utc == other.reference_time_ms_utc &&
-           this->reference_timezone == other.reference_timezone &&
-           this->locales == other.locales &&
-           this->detected_text_language_tags ==
-               other.detected_text_language_tags &&
-           this->annotation_usecase == other.annotation_usecase &&
-           this->is_serialized_entity_data_enabled ==
-               other.is_serialized_entity_data_enabled;
-  }
-};
 
 // Holds TFLite interpreters for selection and classification models.
 // NOTE: This class is not thread-safe, thus should NOT be re-used across
@@ -225,6 +142,32 @@ class Annotator {
   // Initializes the installed app engine with the given config.
   bool InitializeInstalledAppEngine(const std::string& serialized_config);
 
+  // Initializes the person name engine with the given person name model in the
+  // provided buffer. The buffer needs to outlive the annotator.
+  bool InitializePersonNameEngineFromUnownedBuffer(const void* buffer,
+                                                   int size);
+
+  // Initializes the person name engine with the given person name model from
+  // the provided mmap.
+  bool InitializePersonNameEngineFromScopedMmap(const ScopedMmap& mmap);
+
+  // Initializes the person name engine with the given person name model in the
+  // provided file path.
+  bool InitializePersonNameEngineFromPath(const std::string& path);
+
+  // Initializes the person name engine with the given person name model in the
+  // provided file descriptor.
+  bool InitializePersonNameEngineFromFileDescriptor(int fd, int offset,
+                                                    int size);
+
+  // Initializes the experimental annotators if available.
+  // Returns true if there is an implementation of experimental annotators
+  // linked in.
+  bool InitializeExperimentalAnnotators();
+
+  // Sets up the lang-id instance that should be used.
+  void SetLangId(const libtextclassifier3::mobile::lang_id::LangId* lang_id);
+
   // Runs inference for given a context and current selection (i.e. index
   // of the first and one past last selected characters (utf8 codepoint
   // offsets)). Returns the indices (utf8 codepoint offsets) of the selection
@@ -242,6 +185,20 @@ class Annotator {
   std::vector<ClassificationResult> ClassifyText(
       const std::string& context, CodepointSpan selection_indices,
       const ClassificationOptions& options = ClassificationOptions()) const;
+
+  // Annotates the given structed input request. Models which handle the full
+  // context request will receive all the metadata they require. While models
+  // that don't use the extra context are called using only a string.
+  // For each fragment the annotations are sorted by their position in
+  // the fragment and exclude spans classified as 'other'.
+  //
+  // The number of vectors of annotated spans will match the number
+  // of input fragments. The order of annotation span vectors will match the
+  // order of input fragments. If annotation is not possible for any of the
+  // annotators, no annotation is returned.
+  StatusOr<std::vector<std::vector<AnnotatedSpan>>> AnnotateStructuredInput(
+      const std::vector<InputFragment>& string_fragments,
+      const AnnotationOptions& options = AnnotationOptions()) const;
 
   // Annotates given input text. The annotations are sorted by their position
   // in the context string and exclude spans classified as 'other'.
@@ -477,6 +434,9 @@ class Annotator {
   std::unique_ptr<const FeatureProcessor> classification_feature_processor_;
 
   std::unique_ptr<const DatetimeParser> datetime_parser_;
+  std::unique_ptr<const dates::CfgDatetimeAnnotator> cfg_datetime_parser_;
+
+  std::unique_ptr<const GrammarAnnotator> grammar_annotator_;
 
  private:
   struct CompiledRegexPattern {
@@ -489,6 +449,19 @@ class Annotator {
   void RemoveNotEnabledEntityTypes(
       const EnabledEntityTypes& is_entity_type_enabled,
       std::vector<AnnotatedSpan>* annotated_spans) const;
+
+  // Runs only annotators that do not support structured input. Does conflict
+  // resolution, removal of disallowed entities and sorting on both new
+  // generated candidates and passed in entities.
+  // Returns Status::Error if the annotation failed, in which case the vector of
+  // candidates should be ignored.
+  Status AnnotateSingleInput(const std::string& context,
+                             const AnnotationOptions& options,
+                             std::vector<AnnotatedSpan>* candidates) const;
+
+  // Parses the money amount into whole and decimal part and fills in the
+  // entity data information.
+  bool ParseAndFillInMoneyAmount(std::string* serialized_entity_data) const;
 
   std::unique_ptr<ScopedMmap> mmap_;
   bool initialized_ = false;
@@ -515,6 +488,9 @@ class Annotator {
   std::unique_ptr<const InstalledAppEngine> installed_app_engine_;
   std::unique_ptr<const NumberAnnotator> number_annotator_;
   std::unique_ptr<const DurationAnnotator> duration_annotator_;
+  std::unique_ptr<const PersonNameEngine> person_name_engine_;
+  std::unique_ptr<const TranslateAnnotator> translate_annotator_;
+  std::unique_ptr<const ExperimentalAnnotator> experimental_annotator_;
 
   // Builder for creating extra data.
   const reflection::Schema* entity_data_schema_;
@@ -528,6 +504,20 @@ class Annotator {
 
   // Locales that the dictionary classification support.
   std::vector<Locale> dictionary_locales_;
+
+  // Decimal and thousands number separators.
+  std::unordered_set<char32> money_separators_;
+
+  // Model for language identification.
+  const libtextclassifier3::mobile::lang_id::LangId* lang_id_ = nullptr;
+
+  // If true, will prioritize the longest annotation during conflict resolution.
+  bool prioritize_longest_annotation_ = false;
+
+  // If true, the annotator will perform conflict resolution between the
+  // different sub-annotators also in the RAW mode. If false, no conflict
+  // resolution will be performed in RAW mode.
+  bool do_conflict_resolution_in_raw_mode_ = true;
 };
 
 namespace internal {

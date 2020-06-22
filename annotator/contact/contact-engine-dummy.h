@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "annotator/feature-processor.h"
+#include "annotator/model_generated.h"
 #include "annotator/types.h"
 #include "utils/base/logging.h"
 #include "utils/utf8/unicodetext.h"
@@ -31,7 +32,8 @@ namespace libtextclassifier3 {
 class ContactEngine {
  public:
   explicit ContactEngine(const FeatureProcessor* feature_processor,
-                         const UniLib* unilib) {}
+                         const UniLib* unilib,
+                         const ContactAnnotatorOptions* options) {}
 
   bool Initialize(const std::string& serialized_config) {
     TC3_LOG(ERROR) << "No contact engine to initialize.";

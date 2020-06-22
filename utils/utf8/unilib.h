@@ -18,6 +18,7 @@
 
 #include "utils/base/integral_types.h"
 #include "utils/utf8/unicodetext.h"
+#include "utils/utf8/unilib-common.h"
 
 #include "utils/utf8/unilib-icu.h"
 #define INIT_UNILIB_FOR_TESTING(VAR) VAR()
@@ -46,6 +47,24 @@ class UniLib : public UniLibBase {
     return result;
   }
 
+  bool IsLowerText(const UnicodeText& text) const {
+    for (const char32 codepoint : text) {
+      if (!IsLower(codepoint)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool IsUpperText(const UnicodeText& text) const {
+    for (const char32 codepoint : text) {
+      if (!IsUpper(codepoint)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   bool IsDigits(const UnicodeText& text) const {
     for (const char32 codepoint : text) {
       if (!IsDigit(codepoint)) {
@@ -53,6 +72,62 @@ class UniLib : public UniLibBase {
       }
     }
     return true;
+  }
+
+  bool IsPercentage(char32 codepoint) const {
+    return libtextclassifier3::IsPercentage(codepoint);
+  }
+
+  bool IsSlash(char32 codepoint) const {
+    return libtextclassifier3::IsSlash(codepoint);
+  }
+
+  bool IsMinus(char32 codepoint) const {
+    return libtextclassifier3::IsMinus(codepoint);
+  }
+
+  bool IsNumberSign(char32 codepoint) const {
+    return libtextclassifier3::IsNumberSign(codepoint);
+  }
+
+  bool IsDot(char32 codepoint) const {
+    return libtextclassifier3::IsDot(codepoint);
+  }
+
+  bool IsLatinLetter(char32 codepoint) const {
+    return libtextclassifier3::IsLatinLetter(codepoint);
+  }
+
+  bool IsArabicLetter(char32 codepoint) const {
+    return libtextclassifier3::IsArabicLetter(codepoint);
+  }
+
+  bool IsCyrillicLetter(char32 codepoint) const {
+    return libtextclassifier3::IsCyrillicLetter(codepoint);
+  }
+
+  bool IsChineseLetter(char32 codepoint) const {
+    return libtextclassifier3::IsChineseLetter(codepoint);
+  }
+
+  bool IsJapaneseLetter(char32 codepoint) const {
+    return libtextclassifier3::IsJapaneseLetter(codepoint);
+  }
+
+  bool IsKoreanLetter(char32 codepoint) const {
+    return libtextclassifier3::IsKoreanLetter(codepoint);
+  }
+
+  bool IsThaiLetter(char32 codepoint) const {
+    return libtextclassifier3::IsThaiLetter(codepoint);
+  }
+
+  bool IsCJTletter(char32 codepoint) const {
+    return libtextclassifier3::IsCJTletter(codepoint);
+  }
+
+  bool IsLetter(char32 codepoint) const {
+    return libtextclassifier3::IsLetter(codepoint);
   }
 };
 

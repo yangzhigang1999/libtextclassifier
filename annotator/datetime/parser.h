@@ -38,8 +38,8 @@ namespace libtextclassifier3 {
 class DatetimeParser {
  public:
   static std::unique_ptr<DatetimeParser> Instance(
-      const DatetimeModel* model, const UniLib& unilib,
-      const CalendarLib& calendarlib, ZlibDecompressor* decompressor);
+      const DatetimeModel* model, const UniLib* unilib,
+      const CalendarLib* calendarlib, ZlibDecompressor* decompressor);
 
   // Parses the dates in 'input' and fills result. Makes sure that the results
   // do not overlap.
@@ -59,9 +59,9 @@ class DatetimeParser {
              std::vector<DatetimeParseResultSpan>* results) const;
 
  protected:
-  DatetimeParser(const DatetimeModel* model, const UniLib& unilib,
-                 const CalendarLib& calendarlib,
-                 ZlibDecompressor* decompressor);
+  explicit DatetimeParser(const DatetimeModel* model, const UniLib* unilib,
+                          const CalendarLib* calendarlib,
+                          ZlibDecompressor* decompressor);
 
   // Returns a list of locale ids for given locale spec string (comma-separated
   // locale names). Assigns the first parsed locale to reference_locale.
@@ -84,10 +84,6 @@ class DatetimeParser {
                      const std::string& reference_locale, const int locale_id,
                      bool anchor_start_end,
                      std::vector<DatetimeParseResultSpan>* result) const;
-
-  void FillInterpretations(
-      const DatetimeParsedData& parse,
-      std::vector<DatetimeParsedData>* interpretations) const;
 
   // Converts the current match in 'matcher' into DatetimeParseResult.
   bool ExtractDatetime(const CompiledRule& rule,

@@ -63,6 +63,12 @@ inline LoggingStringStream& operator<<(LoggingStringStream& stream,
   return stream;
 }
 
+inline LoggingStringStream& operator<<(LoggingStringStream& stream,
+                                       const std::string_view message) {
+  stream.message.append(message);
+  return stream;
+}
+
 template <typename T1, typename T2>
 inline LoggingStringStream& operator<<(LoggingStringStream& stream,
                                        const std::pair<T1, T2>& entry) {
@@ -137,7 +143,7 @@ inline NullStream& operator<<(NullStream& str, const T&) {
 
 // Debug checks: a TC3_DCHECK<suffix> macro should behave like TC3_CHECK<suffix>
 // in debug mode an don't check / don't print anything in non-debug mode.
-#ifdef NDEBUG
+#if defined(NDEBUG) && !defined(TC3_DEBUG_LOGGING) && !defined(TC3_DEBUG_CHECKS)
 
 #define TC3_DCHECK(x) TC3_NULLSTREAM
 #define TC3_DCHECK_EQ(x, y) TC3_NULLSTREAM
@@ -161,7 +167,7 @@ inline NullStream& operator<<(NullStream& str, const T&) {
 
 #endif  // NDEBUG
 
-#ifdef TC3_VLOG
+#ifdef TC3_ENABLE_VLOG
 #define TC3_VLOG(severity)                                     \
   ::libtextclassifier3::logging::LogMessage(                   \
       ::libtextclassifier3::logging::INFO, __FILE__, __LINE__) \

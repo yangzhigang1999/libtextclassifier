@@ -15,27 +15,67 @@
 
 #include "utils/utf8/unilib-icu.h"
 
+#include <functional>
 #include <utility>
+
+#include "utils/base/logging.h"
+#include "utils/utf8/unilib-common.h"
 
 namespace libtextclassifier3 {
 
-bool UniLibBase::ParseInt32(const UnicodeText& text, int* result) const {
+bool UniLibBase::ParseInt32(const UnicodeText& text, int32* result) const {
+  return ParseInt(text, result);
+}
+
+bool UniLibBase::ParseInt64(const UnicodeText& text, int64* result) const {
+  return ParseInt(text, result);
+}
+
+bool UniLibBase::ParseDouble(const UnicodeText& text, double* result) const {
   UErrorCode status = U_ZERO_ERROR;
-  UNumberFormat* format_alias =
-      unum_open(UNUM_DECIMAL, nullptr, 0, "en_US_POSIX", nullptr, &status);
+  std::unique_ptr<UNumberFormat, std::function<void(UNumberFormat*)>>
+      format_alias(
+          unum_open(/*style=*/UNUM_DECIMAL, /*pattern=*/nullptr,
+                    /*patternLength=*/0, /*locale=*/"en_US_POSIX",
+                    /*parseErr=*/nullptr, &status),
+          [](UNumberFormat* format_alias) { unum_close(format_alias); });
   if (U_FAILURE(status)) {
     return false;
   }
-  icu::UnicodeString utf8_string = icu::UnicodeString::fromUTF8(
-      icu::StringPiece(text.data(), text.size_bytes()));
-  int parse_index = 0;
-  const int32 integer = unum_parse(format_alias, utf8_string.getBuffer(),
-                                   utf8_string.length(), &parse_index, &status);
-  *result = integer;
-  unum_close(format_alias);
-  if (U_FAILURE(status) || parse_index != utf8_string.length()) {
+
+  auto it_dot = text.begin();
+  for (; it_dot != text.end() && !IsDot(*it_dot); it_dot++) {
+  }
+
+  int64 integer_part;
+  if (!ParseInt(UnicodeText::Substring(text.begin(), it_dot, /*do_copy=*/false),
+                &integer_part)) {
     return false;
   }
+
+  int64 fractional_part = 0;
+  if (it_dot != text.end()) {
+    std::string fractional_part_str =
+        UnicodeText::UTF8Substring(++it_dot, text.end());
+    icu::UnicodeString fractional_utf8_string =
+        icu::UnicodeString::fromUTF8(icu::StringPiece(fractional_part_str));
+    int parse_index = 0;
+    const double double_parse = unum_parseDouble(
+        format_alias.get(), fractional_utf8_string.getBuffer(),
+        fractional_utf8_string.length(), &parse_index, &status);
+    fractional_part = std::trunc(double_parse);
+    if (U_FAILURE(status) || parse_index != fractional_utf8_string.length() ||
+        fractional_part != double_parse) {
+      return false;
+    }
+  }
+
+  double factional_part_double = fractional_part;
+  while (factional_part_double >= 1) {
+    factional_part_double /= 10;
+  }
+  *result = integer_part + factional_part_double;
+
   return true;
 }
 

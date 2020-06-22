@@ -24,6 +24,7 @@
 #include <map>
 #include <set>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -31,6 +32,7 @@
 #include "utils/base/integral_types.h"
 #include "utils/base/logging.h"
 #include "utils/flatbuffers.h"
+#include "utils/optional.h"
 #include "utils/variant.h"
 
 namespace libtextclassifier3 {
@@ -138,13 +140,28 @@ struct Token {
   // Whether the token is a padding token.
   bool is_padding;
 
+  // Whether the token contains only white characters.
+  bool is_whitespace;
+
   // Default constructor constructs the padding-token.
   Token()
-      : value(""), start(kInvalidIndex), end(kInvalidIndex), is_padding(true) {}
+      : Token(/*arg_value=*/"", /*arg_start=*/kInvalidIndex,
+              /*arg_end=*/kInvalidIndex, /*is_padding=*/true,
+              /*is_whitespace=*/false) {}
 
   Token(const std::string& arg_value, CodepointIndex arg_start,
         CodepointIndex arg_end)
-      : value(arg_value), start(arg_start), end(arg_end), is_padding(false) {}
+      : Token(/*arg_value=*/arg_value, /*arg_start=*/arg_start,
+              /*arg_end=*/arg_end, /*is_padding=*/false,
+              /*is_whitespace=*/false) {}
+
+  Token(const std::string& arg_value, CodepointIndex arg_start,
+        CodepointIndex arg_end, bool is_padding, bool is_whitespace)
+      : value(arg_value),
+        start(arg_start),
+        end(arg_end),
+        is_padding(is_padding),
+        is_whitespace(is_whitespace) {}
 
   bool operator==(const Token& other) const {
     return value == other.value && start == other.start && end == other.end &&
@@ -248,6 +265,16 @@ struct DatetimeComponent {
         value(arg_value),
         relative_count(arg_relative_count) {}
 };
+
+// Utility method to calculate Returns the finest granularity of
+// DatetimeComponents.
+DatetimeGranularity GetFinestGranularity(
+    const std::vector<DatetimeComponent>& datetime_component);
+
+// Return the 'DatetimeComponent' from collection filter by component type.
+Optional<DatetimeComponent> GetDatetimeComponent(
+    const std::vector<DatetimeComponent>& datetime_components,
+    const DatetimeComponent::ComponentType& component_type);
 
 struct DatetimeParseResult {
   // The absolute time in milliseconds since the epoch in UTC.
@@ -387,6 +414,125 @@ struct ClassificationResult {
   bool operator==(const ClassificationResult& other) const;
 };
 
+// Aliases for long enum values.
+const AnnotationUsecase ANNOTATION_USECASE_SMART =
+    AnnotationUsecase_ANNOTATION_USECASE_SMART;
+const AnnotationUsecase ANNOTATION_USECASE_RAW =
+    AnnotationUsecase_ANNOTATION_USECASE_RAW;
+
+struct LocationContext {
+  // User location latitude in degrees.
+  double user_location_lat = 180.;
+
+  // User location longitude in degrees.
+  double user_location_lng = 360.;
+
+  // The estimated horizontal accuracy of the user location in meters.
+  // Analogous to android.location.Location accuracy.
+  float user_location_accuracy_meters = 0.f;
+
+  bool operator==(const LocationContext& other) const {
+    return std::fabs(this->user_location_lat - other.user_location_lat) <
+               1e-8 &&
+           std::fabs(this->user_location_lng - other.user_location_lng) <
+               1e-8 &&
+           std::fabs(this->user_location_accuracy_meters -
+                     other.user_location_accuracy_meters) < 1e-8;
+  }
+};
+
+struct BaseOptions {
+  // Comma-separated list of locale specification for the input text (BCP 47
+  // tags).
+  std::string locales;
+
+  // Comma-separated list of BCP 47 language tags.
+  std::string detected_text_language_tags;
+
+  // Tailors the output annotations according to the specified use-case.
+  AnnotationUsecase annotation_usecase = ANNOTATION_USECASE_SMART;
+
+  // The location context passed along with each annotation.
+  Optional<LocationContext> location_context;
+
+  bool operator==(const BaseOptions& other) const {
+    bool location_context_equality = this->location_context.has_value() ==
+                                     other.location_context.has_value();
+    if (this->location_context.has_value() &&
+        other.location_context.has_value()) {
+      location_context_equality =
+          this->location_context.value() == other.location_context.value();
+    }
+    return this->locales == other.locales &&
+           this->annotation_usecase == other.annotation_usecase &&
+           this->detected_text_language_tags ==
+               other.detected_text_language_tags &&
+           location_context_equality;
+  }
+};
+
+struct DatetimeOptions {
+  // For parsing relative datetimes, the reference now time against which the
+  // relative datetimes get resolved.
+  // UTC milliseconds since epoch.
+  int64 reference_time_ms_utc = 0;
+
+  // Timezone in which the input text was written (format as accepted by ICU).
+  std::string reference_timezone;
+
+  bool operator==(const DatetimeOptions& other) const {
+    return this->reference_time_ms_utc == other.reference_time_ms_utc &&
+           this->reference_timezone == other.reference_timezone;
+  }
+};
+
+struct SelectionOptions : public BaseOptions {};
+
+struct ClassificationOptions : public BaseOptions, public DatetimeOptions {
+  // Comma-separated list of language tags which the user can read and
+  // understand (BCP 47).
+  std::string user_familiar_language_tags;
+
+  bool operator==(const ClassificationOptions& other) const {
+    return this->user_familiar_language_tags ==
+               other.user_familiar_language_tags &&
+           BaseOptions::operator==(other) && DatetimeOptions::operator==(other);
+  }
+};
+
+struct Permissions {
+  // If true the user location can be used to provide better annotations.
+  bool has_location_permission = true;
+  // If true, annotators can use personal data to provide personalized
+  // annotations.
+  bool has_personalization_permission = true;
+
+  bool operator==(const Permissions& other) const {
+    return this->has_location_permission == other.has_location_permission &&
+           this->has_personalization_permission ==
+               other.has_personalization_permission;
+  }
+};
+
+struct AnnotationOptions : public BaseOptions, public DatetimeOptions {
+  // List of entity types that should be used for annotation.
+  std::unordered_set<std::string> entity_types;
+
+  // If true, serialized_entity_data in the results is populated."
+  bool is_serialized_entity_data_enabled = false;
+
+  // Defines the permissions for the annotators.
+  Permissions permissions;
+
+  bool operator==(const AnnotationOptions& other) const {
+    return this->is_serialized_entity_data_enabled ==
+               other.is_serialized_entity_data_enabled &&
+           this->permissions == other.permissions &&
+           this->entity_types == other.entity_types &&
+           BaseOptions::operator==(other) && DatetimeOptions::operator==(other);
+  }
+};
+
 // Returns true when ClassificationResults are euqal up to scores.
 bool ClassificationResultsEqualIgnoringScoresAndSerializedEntityData(
     const ClassificationResult& a, const ClassificationResult& b);
@@ -402,7 +548,7 @@ logging::LoggingStringStream& operator<<(
 
 // Represents a result of Annotate call.
 struct AnnotatedSpan {
-  enum class Source { OTHER, KNOWLEDGE, DURATION, DATETIME };
+  enum class Source { OTHER, KNOWLEDGE, DURATION, DATETIME, PERSON_NAME };
 
   // Unicode codepoint indices in the input string.
   CodepointSpan span = {kInvalidIndex, kInvalidIndex};
@@ -418,6 +564,21 @@ struct AnnotatedSpan {
   AnnotatedSpan(CodepointSpan arg_span,
                 std::vector<ClassificationResult> arg_classification)
       : span(arg_span), classification(std::move(arg_classification)) {}
+
+  AnnotatedSpan(CodepointSpan arg_span,
+                std::vector<ClassificationResult> arg_classification,
+                Source arg_source)
+      : span(arg_span),
+        classification(std::move(arg_classification)),
+        source(arg_source) {}
+};
+
+struct InputFragment {
+  std::string text;
+
+  // If present will override the AnnotationOptions reference time and timezone
+  // when annotating this specific string fragment.
+  Optional<DatetimeOptions> datetime_options;
 };
 
 // Pretty-printing function for AnnotatedSpan.
@@ -464,6 +625,10 @@ class DatetimeParsedData {
       const DatetimeComponent::ComponentType& field_type,
       const DatetimeComponent::RelativeQualifier& relative_value);
 
+  // Add collection of 'DatetimeComponent' to 'DatetimeParsedData'.
+  void AddDatetimeComponents(
+      const std::vector<DatetimeComponent>& datetime_components);
+
   // Function to set the relative count of DateTimeComponent, if the field is
   // not present the function will create the field and set the count.
   void SetRelativeCount(const DatetimeComponent::ComponentType& field_type,
@@ -504,6 +669,9 @@ class DatetimeParsedData {
   // DateTimeComponent for given FieldType.
   bool HasAbsoluteValue(
       const DatetimeComponent::ComponentType& field_type) const;
+
+  // Function to check if DateTimeParsedData has any DateTimeComponent.
+  bool IsEmpty() const;
 
  private:
   DatetimeComponent& GetOrCreateDatetimeComponent(
