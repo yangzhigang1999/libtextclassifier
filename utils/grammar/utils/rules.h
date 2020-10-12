@@ -65,15 +65,24 @@ class Rules {
   struct RhsElement {
     RhsElement() {}
     explicit RhsElement(const std::string& terminal, const bool is_optional)
-        : is_terminal(true), terminal(terminal), is_optional(is_optional) {}
-    explicit RhsElement(const int nonterminal, const bool is_optional)
+        : is_terminal(true),
+          terminal(terminal),
+          is_optional(is_optional),
+          is_constituent(false) {}
+    explicit RhsElement(const int nonterminal, const bool is_optional,
+                        const bool is_constituent = true)
         : is_terminal(false),
           nonterminal(nonterminal),
-          is_optional(is_optional) {}
+          is_optional(is_optional),
+          is_constituent(is_constituent) {}
     bool is_terminal;
     std::string terminal;
     int nonterminal;
     bool is_optional;
+
+    // Whether the element is a constituent of a rule - these are the explicit
+    // nonterminals, but not terminals or implicitly added anchors.
+    bool is_constituent;
   };
 
   // Represents the right-hand side, and possibly callback, of one rule.
@@ -138,6 +147,9 @@ class Rules {
                        const std::vector<std::string>& rhs, int64 value,
                        int8 max_whitespace_gap = -1,
                        bool case_sensitive = false, int shard = 0);
+  void AddValueMapping(int lhs, const std::vector<RhsElement>& rhs, int64 value,
+                       int8 max_whitespace_gap = -1,
+                       bool case_sensitive = false, int shard = 0);
 
   // Adds a regex rule.
   void AddRegex(const std::string& lhs, const std::string& regex_pattern);
@@ -151,6 +163,10 @@ class Rules {
 
   // Defines a nonterminal for an externally provided annotation.
   int AddAnnotation(const std::string& annotation_name);
+
+  // Defines a nonterminal for an externally provided annotation.
+  void BindAnnotation(const std::string& nonterminal_name,
+                      const std::string& annotation_name);
 
   // Adds an alias for a nonterminal. This is a separate name for the same
   // nonterminal.
@@ -198,6 +214,9 @@ class Rules {
   // Checks whether an element denotes a specific nonterminal.
   bool IsNonterminalOfName(const RhsElement& element,
                            const std::string& nonterminal) const;
+
+  // Checks whether the fillers are used in any active rule.
+  bool UsesFillers() const;
 
   const int num_shards_;
 

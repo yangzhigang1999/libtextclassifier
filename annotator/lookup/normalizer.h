@@ -45,12 +45,11 @@ class Normalizer {
   // to the first byte of each respective code point. There's an additional
   // index mapping from output text size to original input size, so
   // original_indices.size() == return_string.size() + 1.
-  ::string Normalize(
+  ::std::string Normalize(
       absl::string_view input, bool fold_case = false,
-      std::vector<::string::size_type>* original_indices = nullptr) const;
+      std::vector<::std::string::size_type>* original_indices = nullptr) const;
 
  private:
-  std::map<::string, ::string> normalization_table_;
   const UniLib* unilib_;
 };
 

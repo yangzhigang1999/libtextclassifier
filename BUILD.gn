@@ -38,8 +38,9 @@ flatbuffer("flatbuffers") {
     "annotator/person_name/person_name_model.fbs",
     "lang_id/common/flatbuffers/embedding-network.fbs",
     "lang_id/common/flatbuffers/model.fbs",
+    "utils/container/bit-vector.fbs",
+    "utils/flatbuffers/flatbuffers.fbs",
     "utils/codepoint-range.fbs",
-    "utils/flatbuffers.fbs",
     "utils/grammar/rules.fbs",
     "utils/i18n/language-tag.fbs",
     "utils/intents/intent-config.fbs",
@@ -122,14 +123,15 @@ static_library("textclassifier") {
     "utils/base/arena.cc",
     "utils/base/logging.cc",
     "utils/base/logging_raw.cc",
-    "utils/base/prefixvarint.cc",
     "utils/base/status.cc",
     "utils/calendar/calendar-icu.cc",
     "utils/checksum.cc",
     "utils/codepoint-range.cc",
+    "utils/container/bit-vector.cc",
     "utils/container/double-array-trie.cc",
     "utils/container/sorted-strings-table.cc",
-    "utils/flatbuffers.cc",
+    "utils/flatbuffers/mutable.cc",
+    "utils/flatbuffers/reflection.cc",
     "utils/grammar/lexer.cc",
     "utils/grammar/match.cc",
     "utils/grammar/matcher.cc",
@@ -174,6 +176,7 @@ static_library("textclassifier") {
     "TC3_CALENDAR_ICU",
     "TC3_DISABLE_LUA",
     "TC3_UNILIB_ICU",
+    "TC3_VOCAB_ANNOTATOR_DUMMY",
     "ZLIB_CONST",
   ]
 
@@ -183,12 +186,13 @@ static_library("textclassifier") {
   ]
 
   include_dirs = [
-    "//libtextclassifier",
+    "${root_gen_dir}/libtextclassifier",
     "${sysroot}/usr/include/flatbuffers",
     "${sysroot}/usr/include/icu-chrome/common/",
     "${sysroot}/usr/include/icu-chrome/i18n/",
+    "${sysroot}/usr/include/marisa-aosp",
     "${sysroot}/usr/include/tensorflow",
-    "${root_gen_dir}/libtextclassifier",
+    "//libtextclassifier",
   ]
 
   configs += [

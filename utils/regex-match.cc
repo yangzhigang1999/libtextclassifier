@@ -24,8 +24,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "third_party/lua/lua/v5_2/src/lauxlib.h"
-#include "third_party/lua/lua/v5_2/src/lualib.h"
+#include "third_party/lua/lua/v5_4/src/lauxlib.h"
+#include "third_party/lua/lua/v5_4/src/lualib.h"
 #ifdef __cplusplus
 }
 #endif

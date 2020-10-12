@@ -85,10 +85,11 @@ class LookupEngine {
                         absl::flat_hash_set<int>* result_index,
                         std::vector<ClassificationResult>* results) const;
 
-  // Returns the string after stripping boundary codepoints and normalization.
-  // For efficiency, the span is expressed both as a pair of iterators and a
-  // codepoint span. Modifies the iterators and the |span| to match the result.
-  // See also |StripBoundaryCodepoints| methods in the FeatureProcessor.
+  // Returns the string after stripping boundary codepoints (if
+  // |feature_processor_| is present) and normalization. For efficiency, the
+  // span is expressed both as a pair of iterators and a codepoint span.
+  // Modifies the iterators and the |span| to match the result. See also
+  // |StripBoundaryCodepoints| methods in the FeatureProcessor.
   std::string StripBoundaryCodepointsAndNormalize(
       UnicodeText::const_iterator* start_it,
       UnicodeText::const_iterator* end_it, CodepointSpan* span) const;

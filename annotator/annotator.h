@@ -37,13 +37,16 @@
 #include "annotator/model_generated.h"
 #include "annotator/number/number.h"
 #include "annotator/person_name/person-name-engine.h"
+#include "annotator/pod_ner/pod-ner.h"
 #include "annotator/strip-unpaired-brackets.h"
 #include "annotator/translate/translate.h"
 #include "annotator/types.h"
+#include "annotator/vocab/vocab-annotator.h"
 #include "annotator/zlib-utils.h"
 #include "utils/base/status.h"
 #include "utils/base/statusor.h"
-#include "utils/flatbuffers.h"
+#include "utils/flatbuffers/flatbuffers.h"
+#include "utils/flatbuffers/mutable.h"
 #include "utils/i18n/locale.h"
 #include "utils/memory/mmap.h"
 #include "utils/utf8/unilib.h"
@@ -103,6 +106,10 @@ class Annotator {
  public:
   static std::unique_ptr<Annotator> FromUnownedBuffer(
       const char* buffer, int size, const UniLib* unilib = nullptr,
+      const CalendarLib* calendarlib = nullptr);
+  // Copies the underlying model buffer string.
+  static std::unique_ptr<Annotator> FromString(
+      const std::string& buffer, const UniLib* unilib = nullptr,
       const CalendarLib* calendarlib = nullptr);
   // Takes ownership of the mmap.
   static std::unique_ptr<Annotator> FromScopedMmap(
@@ -183,7 +190,7 @@ class Annotator {
   // Classifies the selected text given the context string.
   // Returns an empty result if an error occurs.
   std::vector<ClassificationResult> ClassifyText(
-      const std::string& context, CodepointSpan selection_indices,
+      const std::string& context, const CodepointSpan& selection_indices,
       const ClassificationOptions& options = ClassificationOptions()) const;
 
   // Annotates the given structed input request. Models which handle the full
@@ -196,7 +203,7 @@ class Annotator {
   // of input fragments. The order of annotation span vectors will match the
   // order of input fragments. If annotation is not possible for any of the
   // annotators, no annotation is returned.
-  StatusOr<std::vector<std::vector<AnnotatedSpan>>> AnnotateStructuredInput(
+  StatusOr<Annotations> AnnotateStructuredInput(
       const std::vector<InputFragment>& string_fragments,
       const AnnotationOptions& options = AnnotationOptions()) const;
 
@@ -233,22 +240,14 @@ class Annotator {
     float score;
   };
 
-  // Constructs and initializes text classifier from given model.
-  // Takes ownership of 'mmap', and thus owns the buffer that backs 'model'.
-  Annotator(std::unique_ptr<ScopedMmap>* mmap, const Model* model,
-            const UniLib* unilib, const CalendarLib* calendarlib);
-  Annotator(std::unique_ptr<ScopedMmap>* mmap, const Model* model,
-            std::unique_ptr<UniLib> unilib,
-            std::unique_ptr<CalendarLib> calendarlib);
-
-  // Constructs, validates and initializes text classifier from given model.
-  // Does not own the buffer that backs 'model'.
-  Annotator(const Model* model, const UniLib* unilib,
-            const CalendarLib* calendarlib);
+  // NOTE: ValidateAndInitialize needs to be called before any other method.
+  Annotator() : initialized_(false) {}
 
   // Checks that model contains all required fields, and initializes internal
   // datastructures.
-  void ValidateAndInitialize();
+  // Needs to be called before any other method is.
+  void ValidateAndInitialize(const Model* model, const UniLib* unilib,
+                             const CalendarLib* calendarlib);
 
   // Initializes regular expressions for the regex model.
   bool InitializeRegexModel(ZlibDecompressor* decompressor);
@@ -281,7 +280,7 @@ class Annotator {
   // Provides the tokens produced during tokenization of the context string for
   // reuse.
   bool ModelSuggestSelection(
-      const UnicodeText& context_unicode, CodepointSpan click_indices,
+      const UnicodeText& context_unicode, const CodepointSpan& click_indices,
       const std::vector<Locale>& detected_text_language_tags,
       InterpreterManager* interpreter_manager, std::vector<Token>* tokens,
       std::vector<AnnotatedSpan>* result) const;
@@ -291,7 +290,8 @@ class Annotator {
   // Returns true if no error occurred.
   bool ModelClassifyText(
       const std::string& context, const std::vector<Token>& cached_tokens,
-      const std::vector<Locale>& locales, CodepointSpan selection_indices,
+      const std::vector<Locale>& detected_text_language_tags,
+      const CodepointSpan& selection_indices,
       InterpreterManager* interpreter_manager,
       FeatureProcessor::EmbeddingCache* embedding_cache,
       std::vector<ClassificationResult>* classification_results,
@@ -301,7 +301,8 @@ class Annotator {
   bool ModelClassifyText(
       const std::string& context, const std::vector<Token>& cached_tokens,
       const std::vector<Locale>& detected_text_language_tags,
-      CodepointSpan selection_indices, InterpreterManager* interpreter_manager,
+      const CodepointSpan& selection_indices,
+      InterpreterManager* interpreter_manager,
       FeatureProcessor::EmbeddingCache* embedding_cache,
       std::vector<ClassificationResult>* classification_results) const;
 
@@ -309,7 +310,8 @@ class Annotator {
   bool ModelClassifyText(
       const std::string& context,
       const std::vector<Locale>& detected_text_language_tags,
-      CodepointSpan selection_indices, InterpreterManager* interpreter_manager,
+      const CodepointSpan& selection_indices,
+      InterpreterManager* interpreter_manager,
       FeatureProcessor::EmbeddingCache* embedding_cache,
       std::vector<ClassificationResult>* classification_results) const;
 
@@ -321,13 +323,13 @@ class Annotator {
   // Classifies the selected text with the regular expressions models.
   // Returns true if no error happened, false otherwise.
   bool RegexClassifyText(
-      const std::string& context, CodepointSpan selection_indices,
+      const std::string& context, const CodepointSpan& selection_indices,
       std::vector<ClassificationResult>* classification_result) const;
 
   // Classifies the selected text with the date time model.
   // Returns true if no error happened, false otherwise.
   bool DatetimeClassifyText(
-      const std::string& context, CodepointSpan selection_indices,
+      const std::string& context, const CodepointSpan& selection_indices,
       const ClassificationOptions& options,
       std::vector<ClassificationResult>* classification_results) const;
 
@@ -378,8 +380,11 @@ class Annotator {
   // Produces chunks isolated by a set of regular expressions.
   bool RegexChunk(const UnicodeText& context_unicode,
                   const std::vector<int>& rules,
-                  std::vector<AnnotatedSpan>* result,
-                  bool is_serialized_entity_data_enabled) const;
+                  bool is_serialized_entity_data_enabled,
+                  const EnabledEntityTypes& enabled_entity_types,
+                  const AnnotationUsecase& annotation_usecase,
+
+                  std::vector<AnnotatedSpan>* result) const;
 
   // Produces chunks from the datetime parser.
   bool DatetimeChunk(const UnicodeText& context_unicode,
@@ -438,6 +443,10 @@ class Annotator {
 
   std::unique_ptr<const GrammarAnnotator> grammar_annotator_;
 
+  std::string owned_buffer_;
+  std::unique_ptr<UniLib> owned_unilib_;
+  std::unique_ptr<CalendarLib> owned_calendarlib_;
+
  private:
   struct CompiledRegexPattern {
     const RegexModel_::Pattern* config;
@@ -461,7 +470,19 @@ class Annotator {
 
   // Parses the money amount into whole and decimal part and fills in the
   // entity data information.
-  bool ParseAndFillInMoneyAmount(std::string* serialized_entity_data) const;
+  bool ParseAndFillInMoneyAmount(std::string* serialized_entity_data,
+                                 const UniLib::RegexMatcher* match,
+                                 const RegexModel_::Pattern* config,
+                                 const UnicodeText& context_unicode) const;
+
+  // Given the regex capturing groups, extract the one representing the money
+  // quantity and fills in the actual string and the power of 10 the amount
+  // should be multiplied with.
+  void GetMoneyQuantityFromCapturingGroup(const UniLib::RegexMatcher* match,
+                                          const RegexModel_::Pattern* config,
+                                          const UnicodeText& context_unicode,
+                                          std::string* quantity,
+                                          int* exponent) const;
 
   std::unique_ptr<ScopedMmap> mmap_;
   bool initialized_ = false;
@@ -478,9 +499,7 @@ class Annotator {
   std::vector<int> annotation_regex_patterns_, classification_regex_patterns_,
       selection_regex_patterns_;
 
-  std::unique_ptr<UniLib> owned_unilib_;
   const UniLib* unilib_;
-  std::unique_ptr<CalendarLib> owned_calendarlib_;
   const CalendarLib* calendarlib_;
 
   std::unique_ptr<const KnowledgeEngine> knowledge_engine_;
@@ -490,11 +509,13 @@ class Annotator {
   std::unique_ptr<const DurationAnnotator> duration_annotator_;
   std::unique_ptr<const PersonNameEngine> person_name_engine_;
   std::unique_ptr<const TranslateAnnotator> translate_annotator_;
+  std::unique_ptr<const PodNerAnnotator> pod_ner_annotator_;
   std::unique_ptr<const ExperimentalAnnotator> experimental_annotator_;
+  std::unique_ptr<const VocabAnnotator> vocab_annotator_;
 
   // Builder for creating extra data.
   const reflection::Schema* entity_data_schema_;
-  std::unique_ptr<ReflectiveFlatbufferBuilder> entity_data_builder_;
+  std::unique_ptr<MutableFlatbufferBuilder> entity_data_builder_;
 
   // Locales for which the entire model triggers.
   std::vector<Locale> model_triggering_locales_;
@@ -525,7 +546,7 @@ namespace internal {
 // Helper function, which if the initial 'span' contains only white-spaces,
 // moves the selection to a single-codepoint selection on the left side
 // of this block of white-space.
-CodepointSpan SnapLeftIfWhitespaceSelection(CodepointSpan span,
+CodepointSpan SnapLeftIfWhitespaceSelection(const CodepointSpan& span,
                                             const UnicodeText& context_unicode,
                                             const UniLib& unilib);
 
@@ -533,7 +554,7 @@ CodepointSpan SnapLeftIfWhitespaceSelection(CodepointSpan span,
 // 'tokens_around_selection_to_copy' (on the left, and right) tokens distant
 // from the tokens that correspond to 'selection_indices'.
 std::vector<Token> CopyCachedTokens(const std::vector<Token>& cached_tokens,
-                                    CodepointSpan selection_indices,
+                                    const CodepointSpan& selection_indices,
                                     TokenSpan tokens_around_selection_to_copy);
 }  // namespace internal
 

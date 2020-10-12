@@ -144,11 +144,16 @@ bool LookupEngine::ChunkInternal(const UnicodeText& context_unicode,
 std::string LookupEngine::StripBoundaryCodepointsAndNormalize(
     UnicodeText::const_iterator* start_it, UnicodeText::const_iterator* end_it,
     CodepointSpan* span) const {
-  const CodepointSpan stripped_span =
-      feature_processor_->StripBoundaryCodepoints(*start_it, *end_it, *span);
-  std::advance(*start_it, stripped_span.first - span->first);
-  std::advance(*end_it, stripped_span.second - span->second);
-  *span = stripped_span;
+  // Skip strip boundary codepoints if |feature_processor_| is missing.
+  // TODO(http://b/150347764): Discuss if it makes sense to create a feature
+  // processor in case it is missing.
+  if (feature_processor_ != nullptr) {
+    const CodepointSpan stripped_span =
+        feature_processor_->StripBoundaryCodepoints(*start_it, *end_it, *span);
+    std::advance(*start_it, stripped_span.first - span->first);
+    std::advance(*end_it, stripped_span.second - span->second);
+    *span = stripped_span;
+  }
   if (span->first == span->second) {
     return "";
   }

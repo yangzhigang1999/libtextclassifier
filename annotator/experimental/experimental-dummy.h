@@ -32,12 +32,13 @@ class ExperimentalAnnotator {
   // always disabled;
   static constexpr bool IsEnabled() { return false; }
 
-  explicit ExperimentalAnnotator(const FeatureProcessor& feature_processor,
+  explicit ExperimentalAnnotator(const ExperimentalModel* model,
+                                 const FeatureProcessor& feature_processor,
                                  const UniLib& unilib) {}
 
   bool Annotate(const UnicodeText& context,
                 std::vector<AnnotatedSpan>* candidates) const {
-    return false;
+    return true;
   }
 
   AnnotatedSpan SuggestSelection(const UnicodeText& context,
@@ -45,8 +46,8 @@ class ExperimentalAnnotator {
     return {click, {}};
   }
 
-  bool ClassifyText(const UnicodeText& context, CodepointSpan click,
-                    ClassificationResult* result) const {
+  bool ClassifyText(const UnicodeText& context, CodepointSpan selection_indices,
+                    std::vector<AnnotatedSpan>& candidates) const {
     return false;
   }
 };

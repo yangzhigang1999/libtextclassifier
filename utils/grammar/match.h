@@ -78,7 +78,7 @@ struct Match {
   int16 type = kUnknownType;
 
   // The span in codepoints.
-  CodepointSpan codepoint_span;
+  CodepointSpan codepoint_span = CodepointSpan::kInvalid;
 
   // The begin codepoint offset used during matching.
   // This is usually including any prefix whitespace.

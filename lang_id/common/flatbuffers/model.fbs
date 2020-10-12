@@ -15,7 +15,7 @@
 
 // Flatbuffer schema for SAFT models.
 //
-// For info on flatbuffers, see
+// For info on flatbuffers, see http://go/flatbuffers and
 // http://google.github.io/flatbuffers/, including info on writing schemas:
 // http://google.github.io/flatbuffers/flatbuffers_guide_writing_schema.html
 

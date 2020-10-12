@@ -33,6 +33,7 @@
 #include "utils/resources.h"
 #include "utils/resources_generated.h"
 #include "utils/strings/stringpiece.h"
+#include "flatbuffers/reflection_generated.h"
 
 namespace libtextclassifier3 {
 

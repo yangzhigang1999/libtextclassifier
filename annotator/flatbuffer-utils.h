@@ -21,6 +21,7 @@
 #include <string>
 
 #include "annotator/model_generated.h"
+#include "annotator/types.h"
 
 namespace libtextclassifier3 {
 
@@ -31,6 +32,9 @@ bool SwapFieldNamesForOffsetsInPath(ModelT* model);
 // Same as above but for a serialized model.
 std::string SwapFieldNamesForOffsetsInPathInSerializedModel(
     const std::string& model);
+
+std::string CreateDatetimeSerializedEntityData(
+    const DatetimeParseResult& parse_result);
 
 }  // namespace libtextclassifier3
 

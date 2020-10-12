@@ -24,6 +24,7 @@ namespace libtextclassifier3 {
 bool IsOpeningBracket(char32 codepoint);
 bool IsClosingBracket(char32 codepoint);
 bool IsWhitespace(char32 codepoint);
+bool IsBidirectional(char32 codepoint);
 bool IsDigit(char32 codepoint);
 bool IsLower(char32 codepoint);
 bool IsUpper(char32 codepoint);
@@ -33,6 +34,8 @@ bool IsSlash(char32 codepoint);
 bool IsMinus(char32 codepoint);
 bool IsNumberSign(char32 codepoint);
 bool IsDot(char32 codepoint);
+bool IsApostrophe(char32 codepoint);
+bool IsQuotation(char32 codepoint);
 
 bool IsLatinLetter(char32 codepoint);
 bool IsArabicLetter(char32 codepoint);

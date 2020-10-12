@@ -13,16 +13,13 @@
 // limitations under the License.
 //
 
-// This file was generated with "normalization-table-generator".
-
-#ifndef LIBTEXTCLASSIFIER_ANNOTATOR_LOOKUP_NORMALIZATION_TABLE_H_
-#define LIBTEXTCLASSIFIER_ANNOTATOR_LOOKUP_NORMALIZATION_TABLE_H_
+#ifndef LIBTEXTCLASSIFIER_ANNOTATOR_KNOWLEDGE_KNOWLEDGE_ENGINE_TYPES_H_
+#define LIBTEXTCLASSIFIER_ANNOTATOR_KNOWLEDGE_KNOWLEDGE_ENGINE_TYPES_H_
 
 namespace libtextclassifier3 {
 
-extern const char* kNormalizationTableKeys[1468];
-extern const char* kNormalizationTableValues[1468];
+enum AnnotateMode { kEntityAnnotation, kEntityAndTopicalityAnnotation };
 
 }  // namespace libtextclassifier3
 
-#endif  // LIBTEXTCLASSIFIER_ANNOTATOR_LOOKUP_NORMALIZATION_TABLE_H_
+#endif  // LIBTEXTCLASSIFIER_ANNOTATOR_KNOWLEDGE_KNOWLEDGE_ENGINE_TYPES_H_

@@ -131,7 +131,6 @@ table AndroidSimpleIntentGeneratorExtra {
   type:AndroidSimpleIntentGeneratorExtraType;
 
   string_:string;
-
   bool_:bool;
   int32_:int;
 }
@@ -140,9 +139,7 @@ table AndroidSimpleIntentGeneratorExtra {
 namespace libtextclassifier3;
 table AndroidSimpleIntentGeneratorCondition {
   type:AndroidSimpleIntentGeneratorConditionType;
-
   string_:string;
-
   int32_:int;
   int64_:long;
 }

@@ -23,7 +23,6 @@
 #include "utils/base/logging_levels.h"
 #include "utils/base/port.h"
 
-
 namespace libtextclassifier3 {
 namespace logging {
 

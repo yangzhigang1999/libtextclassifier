@@ -19,9 +19,10 @@
 #include <map>
 #include <string>
 
-#include "annotator/lookup/normalization-table.h"
+#include "knowledge/cerebra/sense/annotation/normalization-table.h"
 #include "utils/strings/utf8.h"
 #include "utils/utf8/unicodetext.h"
+#include "third_party/absl/container/flat_hash_map.h"
 #include "third_party/absl/strings/string_view.h"
 
 namespace libtextclassifier3 {
@@ -41,36 +42,32 @@ int Utf8CharLength(char first_byte) {
 
 }  // namespace
 
-Normalizer::Normalizer(const UniLib* unilib) : unilib_(unilib) {
-  for (int i = 0; i < arraysize(kNormalizationTableKeys); ++i) {
-    normalization_table_[kNormalizationTableKeys[i]] =
-        kNormalizationTableValues[i];
-  }
-}
+Normalizer::Normalizer(const UniLib* unilib) : unilib_(unilib) {}
 
-::string Normalizer::Normalize(
+::std::string Normalizer::Normalize(
     absl::string_view input, bool fold_case,
-    std::vector<::string::size_type>* original_indices) const {
+    std::vector<::std::string::size_type>* original_indices) const {
   const char* input_left = input.data();
-  ::string::size_type bytes_left = input.length();
+  ::std::string::size_type bytes_left = input.length();
 
-  ::string output;
+  ::std::string output;
   if (original_indices != nullptr) {
     original_indices->clear();
   }
-  ::string::size_type codepoint_start_index = 0;
+  ::std::string::size_type codepoint_start_index = 0;
   while (bytes_left > 0) {
     const int utf8_char_length = Utf8CharLength(*input_left);
     if (utf8_char_length > bytes_left) {
       // Invalid utf-8 bytes. We strip these from the output.
       break;
     }
-    const ::string utf8_char(input_left, utf8_char_length);
+    const ::std::string utf8_char(input_left, utf8_char_length);
 
     // The normalization table might map the character to multiple characters.
-    const auto it = normalization_table_.find(utf8_char);
-    ::string normalized_chars =
-        it != normalization_table_.end() ? it->second : utf8_char;
+    const auto it = cerebra_sense::GetNormalizationTable().find(utf8_char);
+    ::std::string normalized_chars =
+        it != cerebra_sense::GetNormalizationTable().end() ? it->second
+                                                           : utf8_char;
 
     if (fold_case) {
       const UnicodeText unfolded =
