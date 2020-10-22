@@ -86,6 +86,8 @@ static_library("textclassifier") {
     "annotator/strip-unpaired-brackets.cc",
     "annotator/translate/translate.cc",
     "annotator/types.cc",
+    "annotator/vocab/vocab-annotator-impl.cc",
+    "annotator/vocab/vocab-level-table.cc",
     "annotator/zlib-utils.cc",
     "lang_id/common/embedding-feature-extractor.cc",
     "lang_id/common/embedding-network-params.cc",
@@ -176,7 +178,7 @@ static_library("textclassifier") {
     "TC3_CALENDAR_ICU",
     "TC3_DISABLE_LUA",
     "TC3_UNILIB_ICU",
-    "TC3_VOCAB_ANNOTATOR_DUMMY",
+    "TC3_VOCAB_ANNOTATOR_IMPL",
     "ZLIB_CONST",
   ]
 
