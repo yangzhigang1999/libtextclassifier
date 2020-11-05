@@ -19,6 +19,7 @@
 #include <iterator>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "utils/base/integral_types.h"
 #include "utils/base/logging.h"
@@ -172,6 +173,9 @@ class UnicodeText {
   UnicodeText& AppendUTF8(const char* utf8, int len);
   UnicodeText& push_back(char32 ch);
   void clear();
+
+  // Returns an iterator for each codepoint.
+  std::vector<const_iterator> Codepoints() const;
 
   std::string ToUTF8String() const;
   std::string UTF8Substring(int begin_codepoint, int end_codepoint) const;

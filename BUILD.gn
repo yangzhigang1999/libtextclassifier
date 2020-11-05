@@ -41,6 +41,7 @@ flatbuffer("flatbuffers") {
     "utils/container/bit-vector.fbs",
     "utils/flatbuffers/flatbuffers.fbs",
     "utils/codepoint-range.fbs",
+    "utils/grammar/next/semantics/expression.fbs",
     "utils/grammar/rules.fbs",
     "utils/i18n/language-tag.fbs",
     "utils/intents/intent-config.fbs",

@@ -55,17 +55,9 @@ bool UniLibBase::ParseDouble(const UnicodeText& text, double* result) const {
 
   int64 fractional_part = 0;
   if (it_dot != text.end()) {
-    std::string fractional_part_str =
-        UnicodeText::UTF8Substring(++it_dot, text.end());
-    icu::UnicodeString fractional_utf8_string =
-        icu::UnicodeString::fromUTF8(icu::StringPiece(fractional_part_str));
-    int parse_index = 0;
-    const double double_parse = unum_parseDouble(
-        format_alias.get(), fractional_utf8_string.getBuffer(),
-        fractional_utf8_string.length(), &parse_index, &status);
-    fractional_part = std::trunc(double_parse);
-    if (U_FAILURE(status) || parse_index != fractional_utf8_string.length() ||
-        fractional_part != double_parse) {
+    if (!ParseInt(
+            UnicodeText::Substring(++it_dot, text.end(), /*do_copy=*/false),
+            &fractional_part)) {
       return false;
     }
   }

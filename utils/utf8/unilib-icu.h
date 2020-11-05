@@ -177,6 +177,12 @@ class UniLibBase {
 
 template <class T>
 bool UniLibBase::ParseInt(const UnicodeText& text, T* result) const {
+  // Fail fast if the text is unlikely to be a number (consistency with
+  // javaicu).
+  if (!PassesIntPreChesks(text, result)) {
+    return false;
+  }
+
   UErrorCode status = U_ZERO_ERROR;
   std::unique_ptr<UNumberFormat, std::function<void(UNumberFormat*)>>
       format_alias(

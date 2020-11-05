@@ -13,18 +13,18 @@
 // limitations under the License.
 //
 
+include "utils/flatbuffers/flatbuffers.fbs";
+include "utils/container/bit-vector.fbs";
+include "annotator/experimental/experimental.fbs";
+include "utils/grammar/rules.fbs";
+include "utils/tokenizer.fbs";
+include "annotator/entity-data.fbs";
+include "utils/normalization.fbs";
+include "utils/zlib/buffer.fbs";
 include "utils/resources.fbs";
 include "utils/intents/intent-config.fbs";
-include "annotator/grammar/dates/dates.fbs";
-include "utils/grammar/rules.fbs";
-include "utils/normalization.fbs";
-include "utils/tokenizer.fbs";
-include "utils/container/bit-vector.fbs";
-include "utils/flatbuffers/flatbuffers.fbs";
-include "annotator/entity-data.fbs";
-include "utils/zlib/buffer.fbs";
 include "utils/codepoint-range.fbs";
-include "annotator/experimental/experimental.fbs";
+include "annotator/grammar/dates/dates.fbs";
 
 file_identifier "TC2 ";
 
@@ -1090,7 +1090,9 @@ namespace libtextclassifier3;
 table VocabModel {
   // A trie that stores a list of vocabs that triggers "Define". A id is
   // returned when looking up a vocab from the trie and the id can be used
-  // to access more information about that vocab.
+  // to access more information about that vocab. The marisa trie library
+  // requires 8-byte alignment because the first thing in a marisa trie is a
+  // 64-bit integer.
   vocab_trie:[ubyte] (force_align: 8);
 
   // A bit vector that tells if the vocab should trigger "Define" for users of

@@ -95,7 +95,7 @@ bool VocabAnnotator::ClassifyTextInternal(
 
   if (!Locale::IsAnyLocaleSupported(detected_text_language_tags,
                                     triggering_locales_,
-                                    /*default_value=*/true)) {
+                                    /*default_value=*/false)) {
     return false;
   }
   const CodepointSpan stripped_span =
