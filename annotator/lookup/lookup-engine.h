@@ -101,7 +101,7 @@ class LookupEngine {
   const Normalizer normalizer_;
 
   std::vector<ClassificationResult> entries_;
-  std::unordered_map<std::string, std::vector<int>> ngram_to_entry_index_;
+  std::unordered_map<std::string, std::vector<   int>> ngram_to_entry_index_;
 };
 
 }  // namespace libtextclassifier3
